@@ -1,8 +1,8 @@
 /// <reference lib="webworker" />
 declare const self: ServiceWorkerGlobalScope;
 
-const CACHE = 'tidio-console-v1';
-const PRECACHE = ['/console/', '/console/index.html'];
+const CACHE = 'tidio-console-v2';
+const PRECACHE: string[] = [];
 
 self.addEventListener('install', (e: ExtendableEvent) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)));
@@ -20,20 +20,35 @@ self.addEventListener('activate', (e: ExtendableEvent) => {
 
 self.addEventListener('fetch', (e: FetchEvent) => {
   if (e.request.method !== 'GET') return;
-  // Don't cache API or WebSocket requests — let the network fail naturally.
   const url = new URL(e.request.url);
+  // Network-only for API + WebSocket.
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/ws/')) return;
+  // Network-first for the console HTML shell — every reload picks up new asset hashes.
+  // We fall back to cache only if the network is offline.
+  const isHtml =
+    url.pathname === '/console/' ||
+    url.pathname === '/console/index.html' ||
+    e.request.mode === 'navigate';
+  if (isHtml) {
+    e.respondWith(
+      fetch(e.request)
+        .then((res) => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, clone));
+          }
+          return res;
+        })
+        .catch(() => caches.match(e.request).then((r) => r ?? Response.error())),
+    );
+    return;
+  }
+  // Cache-first for hashed assets (immutable by hash, safe to cache forever).
   e.respondWith(
     caches.match(e.request).then((r) => {
       if (r) return r;
       return fetch(e.request).then((res) => {
-        // Cache successful responses for the console shell + hashed assets so
-        // the app boots offline once it has been visited online at least once.
-        const isShellAsset =
-          url.pathname.startsWith('/console/assets/') ||
-          url.pathname === '/console/' ||
-          url.pathname === '/console/index.html';
-        if (res.ok && isShellAsset) {
+        if (res.ok && url.pathname.startsWith('/console/assets/')) {
           const clone = res.clone();
           caches.open(CACHE).then((c) => c.put(e.request, clone));
         }

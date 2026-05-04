@@ -83,32 +83,34 @@ describe('service worker', () => {
     );
   });
 
-  it('on install: precaches /console/ and /console/index.html and skips waiting', async () => {
-    const { listeners, cacheStore, fakeSelf, fakeCaches } = setupSwGlobals({});
+  it('on install: opens the current cache and skips waiting (no precache)', async () => {
+    const { listeners, fakeSelf, fakeCaches } = setupSwGlobals({});
     await loadSw();
     let waited: Promise<unknown> | undefined;
     listeners.install({ waitUntil: (p: Promise<unknown>) => { waited = p; } });
     await waited;
-    expect(fakeCaches.open).toHaveBeenCalledWith('tidio-console-v1');
-    expect(cacheStore.addAll).toHaveBeenCalledWith(['/console/', '/console/index.html']);
+    expect(fakeCaches.open).toHaveBeenCalledWith('tidio-console-v2');
     expect(fakeSelf.skipWaiting).toHaveBeenCalled();
   });
 
-  it('on activate: deletes stale caches and claims clients', async () => {
+  it('on activate: deletes stale caches (including v1) and claims clients', async () => {
     const { listeners, fakeCaches, fakeSelf } = setupSwGlobals({});
-    fakeCaches.keys.mockResolvedValueOnce(['tidio-console-v1', 'old-cache']);
+    fakeCaches.keys.mockResolvedValueOnce(['tidio-console-v1', 'tidio-console-v2', 'old-cache']);
     await loadSw();
     let waited: Promise<unknown> | undefined;
     listeners.activate({ waitUntil: (p: Promise<unknown>) => { waited = p; } });
     await waited;
     expect(fakeCaches.delete).toHaveBeenCalledWith('old-cache');
-    expect(fakeCaches.delete).not.toHaveBeenCalledWith('tidio-console-v1');
+    expect(fakeCaches.delete).toHaveBeenCalledWith('tidio-console-v1');
+    expect(fakeCaches.delete).not.toHaveBeenCalledWith('tidio-console-v2');
     expect(fakeSelf.clients.claim).toHaveBeenCalled();
   });
 
-  it('on fetch: returns cached response when present', async () => {
-    const cachedRes = new Response('cached');
-    const { listeners } = setupSwGlobals({ cacheMatchResult: cachedRes });
+  it('on fetch (HTML shell): network-first, returns network response on success', async () => {
+    const fetched = new Response('fresh-html', { status: 200 });
+    const { listeners, fetchSpy } = setupSwGlobals({
+      fetchImpl: () => Promise.resolve(fetched),
+    });
     await loadSw();
     let responded: Promise<Response> | undefined;
     listeners.fetch({
@@ -116,10 +118,40 @@ describe('service worker', () => {
       respondWith: (p: Promise<Response>) => { responded = p; },
     });
     const out = await responded;
+    expect(out).toBe(fetched);
+    expect(fetchSpy).toHaveBeenCalled();
+  });
+
+  it('on fetch (HTML shell): falls back to cache when network rejects', async () => {
+    const cachedRes = new Response('cached-html');
+    const { listeners } = setupSwGlobals({
+      cacheMatchResult: cachedRes,
+      fetchImpl: () => Promise.reject(new Error('offline')),
+    });
+    await loadSw();
+    let responded: Promise<Response> | undefined;
+    listeners.fetch({
+      request: new Request('https://x.example/console/'),
+      respondWith: (p: Promise<Response>) => { responded = p; },
+    });
+    const out = await responded;
     expect(out).toBe(cachedRes);
   });
 
-  it('on fetch: falls back to network on cache miss', async () => {
+  it('on fetch (asset): cache-first, returns cached response when present', async () => {
+    const cachedRes = new Response('cached');
+    const { listeners } = setupSwGlobals({ cacheMatchResult: cachedRes });
+    await loadSw();
+    let responded: Promise<Response> | undefined;
+    listeners.fetch({
+      request: new Request('https://x.example/console/assets/main-abc.js'),
+      respondWith: (p: Promise<Response>) => { responded = p; },
+    });
+    const out = await responded;
+    expect(out).toBe(cachedRes);
+  });
+
+  it('on fetch (asset): falls back to network on cache miss', async () => {
     const fetched = new Response('fresh', { status: 200 });
     const { listeners, fetchSpy } = setupSwGlobals({
       cacheMatchResult: undefined,
@@ -128,7 +160,7 @@ describe('service worker', () => {
     await loadSw();
     let responded: Promise<Response> | undefined;
     listeners.fetch({
-      request: new Request('https://x.example/console/'),
+      request: new Request('https://x.example/console/assets/main-abc.js'),
       respondWith: (p: Promise<Response>) => { responded = p; },
     });
     const out = await responded;
