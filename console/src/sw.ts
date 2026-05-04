@@ -20,7 +20,27 @@ self.addEventListener('activate', (e: ExtendableEvent) => {
 
 self.addEventListener('fetch', (e: FetchEvent) => {
   if (e.request.method !== 'GET') return;
-  e.respondWith(caches.match(e.request).then((r) => r ?? fetch(e.request)));
+  // Don't cache API or WebSocket requests — let the network fail naturally.
+  const url = new URL(e.request.url);
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/ws/')) return;
+  e.respondWith(
+    caches.match(e.request).then((r) => {
+      if (r) return r;
+      return fetch(e.request).then((res) => {
+        // Cache successful responses for the console shell + hashed assets so
+        // the app boots offline once it has been visited online at least once.
+        const isShellAsset =
+          url.pathname.startsWith('/console/assets/') ||
+          url.pathname === '/console/' ||
+          url.pathname === '/console/index.html';
+        if (res.ok && isShellAsset) {
+          const clone = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, clone));
+        }
+        return res;
+      });
+    }),
+  );
 });
 
 self.addEventListener('push', (event: PushEvent) => {

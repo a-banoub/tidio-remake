@@ -147,6 +147,58 @@ describe('service worker', () => {
     expect(respondWith).not.toHaveBeenCalled();
   });
 
+  it('on fetch: bypasses /api/ and /ws/ (no respondWith call)', async () => {
+    const { listeners } = setupSwGlobals({});
+    await loadSw();
+    const respondWith = vi.fn();
+    listeners.fetch({
+      request: new Request('https://x.example/api/operator/login', { method: 'GET' }),
+      respondWith,
+    });
+    listeners.fetch({
+      request: new Request('https://x.example/ws/operator', { method: 'GET' }),
+      respondWith,
+    });
+    expect(respondWith).not.toHaveBeenCalled();
+  });
+
+  it('on fetch: caches successful console asset responses on cache miss', async () => {
+    const fetched = new Response('fresh', { status: 200 });
+    const { listeners, cacheStore, fetchSpy } = setupSwGlobals({
+      cacheMatchResult: undefined,
+      fetchImpl: () => Promise.resolve(fetched),
+    });
+    await loadSw();
+    let responded: Promise<Response> | undefined;
+    listeners.fetch({
+      request: new Request('https://x.example/console/assets/index-abc.js'),
+      respondWith: (p: Promise<Response>) => { responded = p; },
+    });
+    const out = await responded;
+    expect(out).toBe(fetched);
+    expect(fetchSpy).toHaveBeenCalled();
+    // Allow microtasks for the cache.put to fire.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(cacheStore.put).toHaveBeenCalled();
+  });
+
+  it('on fetch: does NOT cache responses for non-shell paths on cache miss', async () => {
+    const fetched = new Response('fresh', { status: 200 });
+    const { listeners, cacheStore } = setupSwGlobals({
+      cacheMatchResult: undefined,
+      fetchImpl: () => Promise.resolve(fetched),
+    });
+    await loadSw();
+    let responded: Promise<Response> | undefined;
+    listeners.fetch({
+      request: new Request('https://x.example/some-other-path/foo.png'),
+      respondWith: (p: Promise<Response>) => { responded = p; },
+    });
+    await responded;
+    await new Promise((r) => setTimeout(r, 0));
+    expect(cacheStore.put).not.toHaveBeenCalled();
+  });
+
   it('on push: shows a notification with parsed payload', async () => {
     const { listeners, fakeSelf } = setupSwGlobals({});
     await loadSw();
