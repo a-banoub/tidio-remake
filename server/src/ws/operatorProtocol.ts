@@ -34,11 +34,15 @@ export const OpMarkSeenMsg = z.object({
   lastMessageId: z.number().int().positive(),
 });
 
+// Email is validated only when non-empty so an operator can clear the field.
+// Empty strings are treated as "set to NULL" downstream.
+const optionalEmailOrEmpty = z.union([z.literal(''), z.string().email().max(254)]).optional();
+
 export const OpUpdateVisitorMsg = z.object({
   type: z.literal('update_visitor'),
   visitorId: z.string().regex(/^v_[0-9a-f]{12}$/),
   name: z.string().max(200).optional(),
-  email: z.string().email().max(254).optional(),
+  email: optionalEmailOrEmpty,
   phone: z.string().max(40).optional(),
 });
 

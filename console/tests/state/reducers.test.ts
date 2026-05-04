@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { liveVisitors, conversations, queuedConversations, liveConversations, pendingAlerts, operatorStatus } from '../../src/state/store.js';
+import { liveVisitors, conversations, queuedConversations, liveConversations, pendingAlerts, operatorStatus, unreadByConversation, selectedConversationId } from '../../src/state/store.js';
 import { applyWsMessage } from '../../src/state/reducers.js';
 import * as notifications from '../../src/notifications.js';
 
@@ -8,6 +8,8 @@ beforeEach(() => {
   conversations.value = {};
   pendingAlerts.value = [];
   operatorStatus.value = 'online';
+  unreadByConversation.value = {};
+  selectedConversationId.value = null;
 });
 
 describe('reducers', () => {
@@ -69,6 +71,28 @@ describe('reducers', () => {
     applyWsMessage({ type: 'new_message', conversationId: 'c_a', message: { id: 1, conversation_id: 'c_a', sender: 'visitor', body: 'hello', sent_at: 100, seen_at: null, quick_reply_id: null } });
     expect(spy).toHaveBeenCalledWith({ name: 'Pat', body: 'hello' });
     spy.mockRestore();
+  });
+
+  it('new_message from visitor increments unread when conversation NOT selected', () => {
+    vi.spyOn(notifications, 'notifyVisitorMessage').mockImplementation(() => {});
+    conversations.value = {
+      c_a: { id: 'c_a', visitor_id: 'v_a', opened_session_id: null, status: 'live', opened_at: 1, closed_at: null, last_message_at: 1, initiated_by: 'visitor', timeout_capture: null, messages: [] },
+    };
+    selectedConversationId.value = null; // nothing selected
+    applyWsMessage({ type: 'new_message', conversationId: 'c_a', message: { id: 1, conversation_id: 'c_a', sender: 'visitor', body: 'hi', sent_at: 100, seen_at: null, quick_reply_id: null } });
+    expect(unreadByConversation.value['c_a']).toBe(1);
+    applyWsMessage({ type: 'new_message', conversationId: 'c_a', message: { id: 2, conversation_id: 'c_a', sender: 'visitor', body: 'still here?', sent_at: 200, seen_at: null, quick_reply_id: null } });
+    expect(unreadByConversation.value['c_a']).toBe(2);
+  });
+
+  it('new_message from visitor does NOT increment unread when that conversation IS selected', () => {
+    vi.spyOn(notifications, 'notifyVisitorMessage').mockImplementation(() => {});
+    conversations.value = {
+      c_a: { id: 'c_a', visitor_id: 'v_a', opened_session_id: null, status: 'live', opened_at: 1, closed_at: null, last_message_at: 1, initiated_by: 'visitor', timeout_capture: null, messages: [] },
+    };
+    selectedConversationId.value = 'c_a';
+    applyWsMessage({ type: 'new_message', conversationId: 'c_a', message: { id: 1, conversation_id: 'c_a', sender: 'visitor', body: 'hi', sent_at: 100, seen_at: null, quick_reply_id: null } });
+    expect(unreadByConversation.value['c_a']).toBeUndefined();
   });
 
   it('new_message from operator does NOT trigger notification', () => {

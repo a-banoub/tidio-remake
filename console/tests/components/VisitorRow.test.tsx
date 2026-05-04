@@ -69,6 +69,24 @@ describe('VisitorRow', () => {
     const { container } = render(<VisitorRow visitor={makeVisitor()} onClick={() => {}} />);
     expect(container.textContent).not.toMatch(/ago/);
   });
+
+  it('renders unread badge when unread > 0', () => {
+    const { getByTestId } = render(<VisitorRow visitor={makeVisitor()} onClick={() => {}} unread={3} />);
+    expect(getByTestId('unread-badge').textContent).toBe('3');
+  });
+
+  it('caps unread badge at 99+', () => {
+    const { getByTestId } = render(<VisitorRow visitor={makeVisitor()} onClick={() => {}} unread={150} />);
+    expect(getByTestId('unread-badge').textContent).toBe('99+');
+  });
+
+  it('omits unread badge when unread is 0 or missing', () => {
+    const a = render(<VisitorRow visitor={makeVisitor()} onClick={() => {}} unread={0} />);
+    expect(a.queryByTestId('unread-badge')).toBeNull();
+    a.unmount();
+    const b = render(<VisitorRow visitor={makeVisitor()} onClick={() => {}} />);
+    expect(b.queryByTestId('unread-badge')).toBeNull();
+  });
 });
 
 describe('relativeTime', () => {

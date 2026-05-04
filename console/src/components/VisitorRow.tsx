@@ -1,6 +1,6 @@
 import type { LiveVisitor } from '../state/types.js';
 
-type Props = { visitor: LiveVisitor; onClick: () => void; selected?: boolean; lastMessageAt?: number };
+type Props = { visitor: LiveVisitor; onClick: () => void; selected?: boolean; lastMessageAt?: number; unread?: number };
 
 export function visitorDisplayName(v: LiveVisitor): string {
   if (v.name && v.name.trim().length > 0) return v.name;
@@ -34,13 +34,14 @@ export function relativeTime(ts: number, now: number = Date.now()): string {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export function VisitorRow({ visitor, onClick, selected, lastMessageAt }: Props) {
+export function VisitorRow({ visitor, onClick, selected, lastMessageAt, unread }: Props) {
   const hot = visitor.isHot;
+  const hasUnread = !!unread && unread > 0;
   const display = visitorDisplayName(visitor);
   const initial = (visitor.name?.[0] ?? display[display.length - 1] ?? '?').toUpperCase();
   const className = [
-    'px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-slate-50 border-b border-slate-100',
-    selected && 'bg-blue-50',
+    'px-4 py-3 flex items-start gap-3 cursor-pointer border-b border-slate-100',
+    selected ? 'bg-blue-50' : hasUnread ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-slate-50',
     hot && 'border-l-4 border-l-orange-500',
   ].filter(Boolean).join(' ');
   return (
@@ -50,9 +51,18 @@ export function VisitorRow({ visitor, onClick, selected, lastMessageAt }: Props)
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="text-sm font-medium text-slate-900 truncate">{display}</span>
+          <span className={`text-sm truncate ${hasUnread ? 'font-bold text-slate-900' : 'font-medium text-slate-900'}`}>{display}</span>
           <div className="flex items-center gap-2 shrink-0">
             {hot && <span className="text-[10px] uppercase font-bold text-orange-600">Hot</span>}
+            {hasUnread && (
+              <span
+                aria-label={`${unread} unread`}
+                className="text-[10px] font-bold bg-blue-600 text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center"
+                data-testid="unread-badge"
+              >
+                {unread! > 99 ? '99+' : unread}
+              </span>
+            )}
             {lastMessageAt && (
               <span className="text-[10px] text-slate-400" title={new Date(lastMessageAt).toLocaleString()}>
                 {relativeTime(lastMessageAt)}

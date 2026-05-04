@@ -20,3 +20,7 @@ export const highPriorityVisitors = computed(() => Object.values(liveVisitors.va
 
 export const pendingPing = signal<string | null>(null); // visitorId of the visitor being pinged
 export const pendingAlerts = signal<Array<{ visitorId: string; reason: string; timestamp: number }>>([]);
+
+// Per-conversation unread count of visitor messages received while the
+// conversation was not selected. Reset to 0 when the conversation is selected.
+export const unreadByConversation = signal<Record<string, number>>({});
