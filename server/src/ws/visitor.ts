@@ -53,25 +53,32 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         const device_type = ua.device.type ?? 'desktop';
         const browser = ua.browser.name ?? null;
         const os = ua.os.name ?? null;
-        sessions.create({
-          id: msg.sessionId, visitor_id: msg.visitorId, started_at: now,
-          landing_url: msg.page.url,
-          utm_source: msg.utms.utm_source ?? null,
-          utm_medium: msg.utms.utm_medium ?? null,
-          utm_campaign: msg.utms.utm_campaign ?? null,
-          utm_term: msg.utms.utm_term ?? null,
-          utm_content: msg.utms.utm_content ?? null,
-          gclid: msg.utms.gclid ?? null,
-          fbclid: msg.utms.fbclid ?? null,
-          referrer: msg.referrer,
-          ip,
-          city: geo.city, region: geo.region, country: geo.country, timezone: geo.timezone,
-          device_type, browser, os,
-        });
-        new PageViewsRepo(deps.db).enter(msg.sessionId, msg.page.url, msg.page.title, now);
+
+        // hello is idempotent: a widget WS that reconnects within the same browser
+        // tab reuses its sessionId. Skip session/page_view/auto-signal inserts on
+        // reconnect so we don't crash on UNIQUE(sessions.id) and don't double-count.
+        const existingSession = sessions.findById(msg.sessionId);
+        if (!existingSession) {
+          sessions.create({
+            id: msg.sessionId, visitor_id: msg.visitorId, started_at: now,
+            landing_url: msg.page.url,
+            utm_source: msg.utms.utm_source ?? null,
+            utm_medium: msg.utms.utm_medium ?? null,
+            utm_campaign: msg.utms.utm_campaign ?? null,
+            utm_term: msg.utms.utm_term ?? null,
+            utm_content: msg.utms.utm_content ?? null,
+            gclid: msg.utms.gclid ?? null,
+            fbclid: msg.utms.fbclid ?? null,
+            referrer: msg.referrer,
+            ip,
+            city: geo.city, region: geo.region, country: geo.country, timezone: geo.timezone,
+            device_type, browser, os,
+          });
+          new PageViewsRepo(deps.db).enter(msg.sessionId, msg.page.url, msg.page.title, now);
+        }
         deps.ls.add(msg.visitorId, msg.sessionId, ws, { url: msg.page.url, title: msg.page.title, enteredAt: now });
 
-        // Auto-derived lead signals
+        // Auto-derived lead signals — only on first hello for this session.
         const lsRepo = new LeadSignalsRepo(deps.db);
         let totalDelta = 0;
 
@@ -81,10 +88,12 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
           totalDelta += delta;
         }
 
-        if (isReturning) autoSignal('returning_visitor');
-        if (msg.utms.gclid) autoSignal('google_ads_click', { gclid: msg.utms.gclid });
-        const url = msg.page.url.toLowerCase();
-        if (url.includes('/pricing') || url.includes('/lp/start-your-1031')) autoSignal('pricing_page_view');
+        if (!existingSession) {
+          if (isReturning) autoSignal('returning_visitor');
+          if (msg.utms.gclid) autoSignal('google_ads_click', { gclid: msg.utms.gclid });
+          const url = msg.page.url.toLowerCase();
+          if (url.includes('/pricing') || url.includes('/lp/start-your-1031')) autoSignal('pricing_page_view');
+        }
 
         if (totalDelta > 0) {
           sessions.bumpLeadScore(msg.sessionId, totalDelta);
