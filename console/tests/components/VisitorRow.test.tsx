@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/preact';
-import { VisitorRow, visitorDisplayName } from '../../src/components/VisitorRow.js';
+import { VisitorRow, visitorDisplayName, relativeTime } from '../../src/components/VisitorRow.js';
 import type { LiveVisitor } from '../../src/state/types.js';
 
 function makeVisitor(overrides: Partial<LiveVisitor> = {}): LiveVisitor {
@@ -57,5 +57,38 @@ describe('VisitorRow', () => {
   it('shows Hot badge when isHot', () => {
     const { container } = render(<VisitorRow visitor={makeVisitor({ isHot: true, leadScore: 9 })} onClick={() => {}} />);
     expect(container.textContent).toContain('Hot');
+  });
+
+  it('renders relative lastMessageAt timestamp when provided', () => {
+    const now = Date.now();
+    const { container } = render(<VisitorRow visitor={makeVisitor()} onClick={() => {}} lastMessageAt={now - 5 * 60 * 1000} />);
+    expect(container.textContent).toContain('5m ago');
+  });
+
+  it('omits timestamp when lastMessageAt is missing', () => {
+    const { container } = render(<VisitorRow visitor={makeVisitor()} onClick={() => {}} />);
+    expect(container.textContent).not.toMatch(/ago/);
+  });
+});
+
+describe('relativeTime', () => {
+  const NOW = 1_700_000_000_000;
+  it('"just now" under 45 seconds', () => {
+    expect(relativeTime(NOW - 30_000, NOW)).toBe('just now');
+  });
+  it('minutes', () => {
+    expect(relativeTime(NOW - 5 * 60_000, NOW)).toBe('5m ago');
+  });
+  it('hours', () => {
+    expect(relativeTime(NOW - 3 * 3_600_000, NOW)).toBe('3h ago');
+  });
+  it('days', () => {
+    expect(relativeTime(NOW - 2 * 86_400_000, NOW)).toBe('2d ago');
+  });
+  it('falls back to date for >7 days', () => {
+    const ts = NOW - 14 * 86_400_000;
+    const out = relativeTime(ts, NOW);
+    expect(out).not.toMatch(/ago/);
+    expect(out.length).toBeGreaterThan(0);
   });
 });

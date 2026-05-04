@@ -1,6 +1,6 @@
 import type { LiveVisitor } from '../state/types.js';
 
-type Props = { visitor: LiveVisitor; onClick: () => void; selected?: boolean };
+type Props = { visitor: LiveVisitor; onClick: () => void; selected?: boolean; lastMessageAt?: number };
 
 export function visitorDisplayName(v: LiveVisitor): string {
   if (v.name && v.name.trim().length > 0) return v.name;
@@ -21,7 +21,20 @@ function pageLabel(url: string | undefined | null): string {
   }
 }
 
-export function VisitorRow({ visitor, onClick, selected }: Props) {
+export function relativeTime(ts: number, now: number = Date.now()): string {
+  const diff = Math.max(0, now - ts);
+  const sec = Math.round(diff / 1000);
+  if (sec < 45) return 'just now';
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.round(hr / 24);
+  if (day < 7) return `${day}d ago`;
+  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+export function VisitorRow({ visitor, onClick, selected, lastMessageAt }: Props) {
   const hot = visitor.isHot;
   const display = visitorDisplayName(visitor);
   const initial = (visitor.name?.[0] ?? display[display.length - 1] ?? '?').toUpperCase();
@@ -36,9 +49,16 @@ export function VisitorRow({ visitor, onClick, selected }: Props) {
         {initial}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-baseline justify-between gap-2">
           <span className="text-sm font-medium text-slate-900 truncate">{display}</span>
-          {hot && <span className="text-[10px] uppercase font-bold text-orange-600">Hot</span>}
+          <div className="flex items-center gap-2 shrink-0">
+            {hot && <span className="text-[10px] uppercase font-bold text-orange-600">Hot</span>}
+            {lastMessageAt && (
+              <span className="text-[10px] text-slate-400" title={new Date(lastMessageAt).toLocaleString()}>
+                {relativeTime(lastMessageAt)}
+              </span>
+            )}
+          </div>
         </div>
         <p className="text-xs text-slate-500 truncate">{pageLabel(visitor.currentPage.url)}</p>
         <p className="text-[11px] text-slate-400">Score {visitor.leadScore}</p>
