@@ -10,9 +10,19 @@ import { parseOperatorMessage } from './operatorProtocol.js';
 import { logger } from '../logger.js';
 
 export function authenticateOperatorUpgrade(req: IncomingMessage, deps: ServerDeps): number | null {
+  // Try Authorization: Bearer <token> first
   const auth = req.headers['authorization'];
-  if (!auth || !auth.startsWith('Bearer ')) return null;
-  const token = auth.slice(7);
+  let token: string | null = null;
+  if (auth && auth.startsWith('Bearer ')) {
+    token = auth.slice(7);
+  } else {
+    // Fallback to ?token= query string
+    try {
+      const url = new URL(req.url ?? '/', 'http://x');
+      token = url.searchParams.get('token');
+    } catch {}
+  }
+  if (!token) return null;
   return new OperatorTokensRepo(deps.db).findOperatorIdByToken(token, Date.now()) ?? null;
 }
 
