@@ -206,12 +206,16 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         // Echo back nothing to visitor (their UI already shows it locally).
         // Operator-side dispatch happens in Phase 4.
         logger.debug({ msgId: msgRow.id, conv: conv.id }, 'visitor chat_message stored');
-        // Broadcast to operator console: new message received
-        deps.oc.broadcastTo(1, { type: 'new_message', conversationId: conv.id, message: msgRow });
-        // Broadcast to operator console: new queued conversation (when newly created and queued)
-        if (isNewConversation && initialStatus === 'queued') {
-          deps.oc.broadcastTo(1, { type: 'conversation_queued', conversation: conv });
+        // Broadcast to operator console: new conversation row (for both queued and live).
+        // Must precede `new_message` so the reducer can attach the message to a known conv.
+        if (isNewConversation) {
+          deps.oc.broadcastTo(1, { type: 'conversation_added', conversation: conv });
+          if (initialStatus === 'queued') {
+            // Backwards compat: existing test expects this for queued.
+            deps.oc.broadcastTo(1, { type: 'conversation_queued', conversation: conv });
+          }
         }
+        deps.oc.broadcastTo(1, { type: 'new_message', conversationId: conv.id, message: msgRow });
         // Web Push notify operator if they are unavailable (offline/away/dnd/no-ws/quiet-hours).
         const hasLiveOp = deps.oc.hasAnyConnection(1);
         if (shouldPushOperator(op ?? undefined, hasLiveOp)) {

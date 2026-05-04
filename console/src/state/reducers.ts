@@ -70,9 +70,14 @@ export function applyWsMessage(msg: any): void {
       }
       break;
     }
+    case 'conversation_added':
     case 'conversation_queued': {
       const c = msg.conversation as Conversation;
-      conversations.value = { ...conversations.value, [c.id]: { ...c, messages: [] } };
+      const existing = conversations.value[c.id];
+      conversations.value = {
+        ...conversations.value,
+        [c.id]: { ...c, messages: existing?.messages ?? [] },
+      };
       break;
     }
     case 'conversation_closed': {

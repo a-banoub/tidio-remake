@@ -81,6 +81,8 @@ export function handleOperatorConnection(ws: WebSocket, _req: IncomingMessage, d
           status: 'live', opened_at: Date.now(), initiated_by: 'operator',
         });
         deps.ls.patch(visitorId, { conversationId: cid });
+        const newConv = conversationsRepo.findById(cid);
+        if (newConv) deps.oc.broadcastTo(operatorId, { type: 'conversation_added', conversation: newConv });
         deps.oc.broadcastTo(operatorId, { type: 'conversation_opened', conversationId: cid });
         break;
       }
