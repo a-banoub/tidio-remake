@@ -1,6 +1,7 @@
 import { liveVisitors, selectedConversationId, queuedConversations, liveConversations, selectedConversation, pendingPing } from '../state/store.js';
 import { VisitorRow } from '../components/VisitorRow.js';
 import { StatusDropdown } from '../components/StatusDropdown.js';
+import { InstallPrompt } from '../components/InstallPrompt.js';
 
 export function LeftPane() {
   const inConv = selectedConversation.value;
@@ -14,9 +15,12 @@ export function LeftPane() {
 
   return (
     <aside className="border-r border-slate-200 bg-white overflow-y-auto">
-      <header className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+      <header className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2">
         <h1 className="text-sm font-semibold">Console</h1>
-        <StatusDropdown />
+        <div className="flex items-center gap-2">
+          <InstallPrompt />
+          <StatusDropdown />
+        </div>
       </header>
       <h2 className="text-xs font-semibold uppercase text-slate-500 px-4 pt-4 pb-2">In conversation</h2>
       {inConv && liveVisitors.value[inConv.visitor_id] && (
