@@ -1,4 +1,4 @@
-import { liveVisitors, conversations, operatorStatus } from './store.js';
+import { liveVisitors, conversations, operatorStatus, pendingAlerts } from './store.js';
 import type { LiveVisitor, Conversation, Message } from './types.js';
 
 export function applyWsMessage(msg: any): void {
@@ -82,8 +82,16 @@ export function applyWsMessage(msg: any): void {
       break;
     }
     case 'high_priority_alert': {
-      // No state change here — UI subscribes to this directly via a separate signal for badges/sounds.
-      // Stub: future task can add an alert log.
+      pendingAlerts.value = [...pendingAlerts.value, { visitorId: msg.visitorId, reason: msg.reason, timestamp: Date.now() }];
+      break;
+    }
+    case 'status_changed': {
+      operatorStatus.value = msg.status;
+      break;
+    }
+    case 'conversation_opened': {
+      // No-op here; the PingModal handles the conversationId discovery via the conversations signal.
+      // The actual conversation row will arrive via a subsequent state_snapshot or new_message.
       break;
     }
   }

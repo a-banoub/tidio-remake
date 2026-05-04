@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { liveVisitors, conversations, queuedConversations, liveConversations } from '../../src/state/store.js';
+import { liveVisitors, conversations, queuedConversations, liveConversations, pendingAlerts, operatorStatus } from '../../src/state/store.js';
 import { applyWsMessage } from '../../src/state/reducers.js';
 
 beforeEach(() => {
   liveVisitors.value = {};
   conversations.value = {};
+  pendingAlerts.value = [];
+  operatorStatus.value = 'online';
 });
 
 describe('reducers', () => {
@@ -69,5 +71,16 @@ describe('reducers', () => {
     };
     applyWsMessage({ type: 'conversation_closed', conversationId: 'c_a' });
     expect(conversations.value['c_a'].status).toBe('closed');
+  });
+
+  it('high_priority_alert appends to pendingAlerts', () => {
+    applyWsMessage({ type: 'high_priority_alert', visitorId: 'v_a', reason: 'lead_score_8' });
+    expect(pendingAlerts.value).toHaveLength(1);
+    expect(pendingAlerts.value[0].visitorId).toBe('v_a');
+  });
+
+  it('status_changed updates operatorStatus signal', () => {
+    applyWsMessage({ type: 'status_changed', status: 'away' });
+    expect(operatorStatus.value).toBe('away');
   });
 });

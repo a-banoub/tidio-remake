@@ -17,3 +17,6 @@ export const selectedConversation = computed(() => {
 });
 
 export const highPriorityVisitors = computed(() => Object.values(liveVisitors.value).filter(v => v.isHot && !v.conversationId));
+
+export const pendingPing = signal<string | null>(null); // visitorId of the visitor being pinged
+export const pendingAlerts = signal<Array<{ visitorId: string; reason: string; timestamp: number }>>([]);

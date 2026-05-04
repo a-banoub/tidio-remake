@@ -1,5 +1,6 @@
-import { liveVisitors, selectedConversationId, queuedConversations, liveConversations, selectedConversation } from '../state/store.js';
+import { liveVisitors, selectedConversationId, queuedConversations, liveConversations, selectedConversation, pendingPing } from '../state/store.js';
 import { VisitorRow } from '../components/VisitorRow.js';
+import { StatusDropdown } from '../components/StatusDropdown.js';
 
 export function LeftPane() {
   const inConv = selectedConversation.value;
@@ -13,6 +14,10 @@ export function LeftPane() {
 
   return (
     <aside className="border-r border-slate-200 bg-white overflow-y-auto">
+      <header className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+        <h1 className="text-sm font-semibold">Console</h1>
+        <StatusDropdown />
+      </header>
       <h2 className="text-xs font-semibold uppercase text-slate-500 px-4 pt-4 pb-2">In conversation</h2>
       {inConv && liveVisitors.value[inConv.visitor_id] && (
         <VisitorRow visitor={liveVisitors.value[inConv.visitor_id]} selected onClick={() => {}} />
@@ -27,7 +32,7 @@ export function LeftPane() {
 
       <h2 className="text-xs font-semibold uppercase text-slate-500 px-4 pt-4 pb-2 border-t border-slate-100">Live (not chatting)</h2>
       {liveNotChatting.map(v => (
-        <VisitorRow key={v.visitorId} visitor={v} onClick={() => {}} />
+        <VisitorRow key={v.visitorId} visitor={v} onClick={() => { pendingPing.value = v.visitorId; }} />
       ))}
       {liveNotChatting.length === 0 && <p className="px-4 text-xs text-slate-400">No visitors live</p>}
     </aside>
