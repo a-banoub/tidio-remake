@@ -1,0 +1,13 @@
+chat.simple1031x.com {
+    handle_path /console/* {
+        root * /opt/tidio-remake/console/dist
+        try_files {path} /index.html
+        file_server
+    }
+    handle_path /widget/* {
+        root * /opt/tidio-remake/widget/dist
+        header Cache-Control "public, max-age=300"
+        file_server
+    }
+    reverse_proxy localhost:8080
+}
