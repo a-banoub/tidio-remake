@@ -160,3 +160,41 @@ describe('warm-visitor alert: cancel hooks', () => {
     expect(cancelSpy).toHaveBeenCalledWith(visitorId);
   });
 });
+
+describe('warm-visitor alert: operator open_chat cancel', () => {
+  it('cancels the timer when operator opens a chat with a warm visitor', async () => {
+    // Seed an operator + token so we can connect as operator
+    const opsRepo = new (await import('../../src/repositories/operators.js')).OperatorsRepo(db);
+    const tokenRepo = new (await import('../../src/repositories/operatorTokens.js')).OperatorTokensRepo(db);
+    const opId = opsRepo.create({ email: 'a@b', password_hash: 'x', display_name: 'A', created_at: 1000 });
+    const token = 'tok_' + Math.random().toString(36).slice(2);
+    tokenRepo.create(token, opId, Date.now() + 60_000);
+
+    const cancelSpy = vi.spyOn(warmTimers, 'cancel');
+
+    // Visitor connects + triggers warm timer
+    const visitorId = newVisitorId();
+    const sessionId = newSessionId();
+    const vws = new WebSocket(`ws://127.0.0.1:${port}/ws/visitor`);
+    await new Promise<void>((r) => vws.on('open', () => r()));
+    vws.send(JSON.stringify({
+      type: 'hello', visitorId, sessionId,
+      page: { url: 'https://simple1031x.com/', title: 'H' },
+      utms: { gclid: 'x' }, referrer: null, userAgent: 'Mozilla/5.0',
+    }));
+    await new Promise((r) => vws.on('message', (m) => r(JSON.parse(m.toString()))));
+
+    // Operator connects and opens chat for this visitor
+    const ows = new WebSocket(`ws://127.0.0.1:${port}/ws/operator?token=${token}`);
+    await new Promise<void>((r) => ows.on('open', () => r()));
+    ows.send(JSON.stringify({ type: 'subscribe' }));
+    await new Promise((r) => setTimeout(r, 50));
+    ows.send(JSON.stringify({ type: 'open_chat', visitorId }));
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(cancelSpy).toHaveBeenCalledWith(visitorId);
+    cancelSpy.mockRestore();
+    vws.close();
+    ows.close();
+  });
+});

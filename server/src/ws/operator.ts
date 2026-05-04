@@ -72,6 +72,7 @@ export function handleOperatorConnection(ws: WebSocket, _req: IncomingMessage, d
         const conversationsRepo = new ConversationsRepo(deps.db);
         const existing = conversationsRepo.findOpenForVisitor(visitorId, cutoff);
         if (existing) {
+          deps.warmTimers.cancel(visitorId);
           deps.oc.broadcastTo(operatorId, { type: 'conversation_opened', conversationId: existing.id });
           break;
         }
@@ -84,6 +85,7 @@ export function handleOperatorConnection(ws: WebSocket, _req: IncomingMessage, d
         const newConv = conversationsRepo.findById(cid);
         if (newConv) deps.oc.broadcastTo(operatorId, { type: 'conversation_added', conversation: newConv });
         deps.oc.broadcastTo(operatorId, { type: 'conversation_opened', conversationId: cid });
+        deps.warmTimers.cancel(visitorId);
         break;
       }
 
