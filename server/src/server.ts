@@ -9,6 +9,7 @@ import type { Env } from './env.js';
 import { logger } from './logger.js';
 import { handleVisitorConnection } from './ws/visitor.js';
 import { PhaseTransitionTimers } from './timers/phaseTransition.js';
+import { loginRouter } from './api/login.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WIDGET_DIST = resolve(__dirname, '..', '..', 'widget', 'dist');
@@ -26,6 +27,8 @@ export function createServer(input: ServerDepsInput): Server {
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', uptime: process.uptime() });
   });
+
+  app.use('/api/operator', loginRouter(deps));
 
   app.use('/widget', express.static(WIDGET_DIST, {
     maxAge: '5m',
