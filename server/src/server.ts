@@ -10,6 +10,7 @@ import { logger } from './logger.js';
 import { handleVisitorConnection } from './ws/visitor.js';
 import { authenticateOperatorUpgrade, handleOperatorConnection } from './ws/operator.js';
 import { PhaseTransitionTimers } from './timers/phaseTransition.js';
+import { WarmVisitorTimers } from './timers/warmVisitor.js';
 import { OperatorClients } from './live/operatorClients.js';
 import { loginRouter } from './api/login.js';
 import { quickRepliesRouter } from './api/quickReplies.js';
@@ -22,15 +23,27 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const WIDGET_DIST = resolve(__dirname, '..', '..', 'widget', 'dist');
 const CONSOLE_DIST = resolve(__dirname, '..', '..', 'console', 'dist');
 
-export type ServerDeps = { db: DB; ls: LiveSessions; env: Env; timers: PhaseTransitionTimers; oc: OperatorClients };
+export type ServerDeps = {
+  db: DB;
+  ls: LiveSessions;
+  env: Env;
+  timers: PhaseTransitionTimers;
+  oc: OperatorClients;
+  warmTimers: WarmVisitorTimers;
+};
 
-export type ServerDepsInput = Omit<ServerDeps, 'timers' | 'oc'> & { timers?: PhaseTransitionTimers; oc?: OperatorClients };
+export type ServerDepsInput = Omit<ServerDeps, 'timers' | 'oc' | 'warmTimers'> & {
+  timers?: PhaseTransitionTimers;
+  oc?: OperatorClients;
+  warmTimers?: WarmVisitorTimers;
+};
 
 export function createServer(input: ServerDepsInput): Server {
   const deps: ServerDeps = {
     ...input,
     timers: input.timers ?? new PhaseTransitionTimers(),
     oc: input.oc ?? new OperatorClients(),
+    warmTimers: input.warmTimers ?? new WarmVisitorTimers(),
   };
 
   const app: Express = express();
