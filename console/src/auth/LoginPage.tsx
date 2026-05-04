@@ -21,7 +21,7 @@ export function LoginPage() {
       if (!res.ok) { setError('Invalid email or password.'); return; }
       const { token } = await res.json();
       tokenStore.set(token);
-      window.location.hash = '#/';
+      window.location.reload();
     } catch {
       setError('Network error. Please try again.');
     } finally {
