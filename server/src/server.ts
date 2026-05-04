@@ -14,6 +14,7 @@ import { OperatorClients } from './live/operatorClients.js';
 import { loginRouter } from './api/login.js';
 import { quickRepliesRouter } from './api/quickReplies.js';
 import { visitorDetailRouter } from './api/visitorDetail.js';
+import { settingsRouter } from './api/settings.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WIDGET_DIST = resolve(__dirname, '..', '..', 'widget', 'dist');
@@ -39,6 +40,7 @@ export function createServer(input: ServerDepsInput): Server {
   app.use('/api/operator', loginRouter(deps));
   app.use('/api/operator/quick-replies', quickRepliesRouter(deps));
   app.use('/api/operator/visitor', visitorDetailRouter(deps));
+  app.use('/api/operator/settings', settingsRouter(deps));
 
   app.use('/widget', express.static(WIDGET_DIST, {
     maxAge: '5m',
