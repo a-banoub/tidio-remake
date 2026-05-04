@@ -122,6 +122,7 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         const initialStatus: 'live' | 'queued' = (op?.status === 'online') ? 'live' : 'queued';
         const cutoff = now - 30 * 24 * 60 * 60 * 1000;
         let conv = conversations.findOpenForVisitor(state.visitorId, cutoff);
+        const isNewConversation = !conv;
         if (!conv) {
           const cid = newConversationId();
           conversations.create({
@@ -136,8 +137,25 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         const msgRow = messagesRepo.insert({ conversation_id: conv.id, sender: 'visitor', body: msg.body, sent_at: now });
         conversations.bumpLastMessageAt(conv.id, now);
         // Echo back nothing to visitor (their UI already shows it locally).
-        // Operator-side dispatch happens in Phase 4. Phase-2 timer is added in Task 2.7.
+        // Operator-side dispatch happens in Phase 4.
         logger.debug({ msgId: msgRow.id, conv: conv.id }, 'visitor chat_message stored');
+        // Start Phase-2 capture timer for new queued conversations (operator offline).
+        if (isNewConversation && initialStatus === 'queued') {
+          deps.timers.start(conv.id, () => {
+            const live = deps.ls.get(state.visitorId!);
+            if (!live) return;
+            const v = visitors.findById(state.visitorId!);
+            const skipForm = !!(v?.email && v.email.length > 0);
+            const payload = JSON.stringify({
+              type: 'phase_transition',
+              phase: skipForm ? 'email_on_file' : 'capture',
+              knownEmail: v?.email ?? null,
+            });
+            for (const sock of live.sockets) {
+              try { sock.send(payload); } catch {}
+            }
+          });
+        }
         break;
       }
 

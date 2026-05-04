@@ -6,10 +6,15 @@ import type { LiveSessions } from './live/sessions.js';
 import type { Env } from './env.js';
 import { logger } from './logger.js';
 import { handleVisitorConnection } from './ws/visitor.js';
+import { PhaseTransitionTimers } from './timers/phaseTransition.js';
 
-export type ServerDeps = { db: DB; ls: LiveSessions; env: Env };
+export type ServerDeps = { db: DB; ls: LiveSessions; env: Env; timers: PhaseTransitionTimers };
 
-export function createServer(deps: ServerDeps): Server {
+export type ServerDepsInput = Omit<ServerDeps, 'timers'> & { timers?: PhaseTransitionTimers };
+
+export function createServer(input: ServerDepsInput): Server {
+  const deps: ServerDeps = { ...input, timers: input.timers ?? new PhaseTransitionTimers() };
+
   const app: Express = express();
   app.use(express.json({ limit: '64kb' }));
 
