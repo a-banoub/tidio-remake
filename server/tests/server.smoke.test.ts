@@ -22,4 +22,16 @@ describe('http server', () => {
     });
     expect(res.statusCode).toBe(200);
   });
+
+  it('GET /console/* does not crash even when console/dist is absent', async () => {
+    // Confirms the static mount + SPA fallback is registered without throwing
+    // at app construction time. Whether the fallback returns 200 or 404 depends
+    // on whether the console has been built; the important property is that
+    // express handled the route rather than the server crashing on boot.
+    const res = await new Promise<any>((resolve) => {
+      const req = request({ host: '127.0.0.1', port, path: '/console/' }, resolve);
+      req.end();
+    });
+    expect([200, 404]).toContain(res.statusCode);
+  });
 });

@@ -20,6 +20,7 @@ import { setupRouter } from './api/setup.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WIDGET_DIST = resolve(__dirname, '..', '..', 'widget', 'dist');
+const CONSOLE_DIST = resolve(__dirname, '..', '..', 'console', 'dist');
 
 export type ServerDeps = { db: DB; ls: LiveSessions; env: Env; timers: PhaseTransitionTimers; oc: OperatorClients };
 
@@ -50,6 +51,24 @@ export function createServer(input: ServerDepsInput): Server {
     maxAge: '5m',
     setHeaders: (res) => { res.setHeader('Access-Control-Allow-Origin', '*'); },
   }));
+
+  app.use('/console', express.static(CONSOLE_DIST, {
+    maxAge: '5m',
+    setHeaders: (res, path) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      if (path.endsWith('sw.js')) {
+        // Service workers can't be cached aggressively
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    },
+  }));
+
+  // SPA fallback for /console/* — serve index.html for unknown paths under /console
+  app.get('/console/*', (_req, res, next) => {
+    // Don't override real files — express.static already handled those.
+    // For unknown paths under /console, send index.html.
+    res.sendFile(resolve(CONSOLE_DIST, 'index.html'), (err) => { if (err) next(); });
+  });
 
   const server = createHttpServer(app);
   const wssVisitor = new WebSocketServer({ noServer: true });
