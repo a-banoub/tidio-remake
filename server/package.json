@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/index.js --external:better-sqlite3 --external:@node-rs/argon2 --external:maxmind && node -e \"require('fs').cpSync('src/db/migrations','dist/db/migrations',{recursive:true})\"",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/index.js --packages=external --banner:js=\"import{createRequire as __cr}from'module';const require=__cr(import.meta.url);\" && node -e \"require('fs').cpSync('src/db/migrations','dist/migrations',{recursive:true})\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src tests --ext .ts"
