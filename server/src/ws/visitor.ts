@@ -10,6 +10,7 @@ import { MessagesRepo } from '../repositories/messages.js';
 import { PageViewsRepo } from '../repositories/pageViews.js';
 import { LeadSignalsRepo } from '../repositories/leadSignals.js';
 import { scoreFor } from '../leadScore/compute.js';
+import { newConversationId } from '../ids.js';
 import { logger } from '../logger.js';
 
 type ConnState = { visitorId?: string; sessionId?: string };
@@ -103,6 +104,43 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         }
         break;
       }
+      case 'chat_open': {
+        if (!state.visitorId) break;
+        // Idempotent: only create if no open conversation exists
+        const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        const existing = conversations.findOpenForVisitor(state.visitorId, cutoff);
+        if (existing) {
+          deps.ls.patch(state.visitorId, { conversationId: existing.id });
+        }
+        break;
+      }
+
+      case 'chat_message': {
+        if (!state.visitorId || !state.sessionId) break;
+        const now = Date.now();
+        const op = operators.findById(1);
+        const initialStatus: 'live' | 'queued' = (op?.status === 'online') ? 'live' : 'queued';
+        const cutoff = now - 30 * 24 * 60 * 60 * 1000;
+        let conv = conversations.findOpenForVisitor(state.visitorId, cutoff);
+        if (!conv) {
+          const cid = newConversationId();
+          conversations.create({
+            id: cid, visitor_id: state.visitorId,
+            opened_session_id: state.sessionId,
+            status: initialStatus, opened_at: now, initiated_by: 'visitor',
+          });
+          conv = conversations.findById(cid)!;
+          deps.ls.patch(state.visitorId, { conversationId: cid });
+        }
+        const messagesRepo = new MessagesRepo(deps.db);
+        const msgRow = messagesRepo.insert({ conversation_id: conv.id, sender: 'visitor', body: msg.body, sent_at: now });
+        conversations.bumpLastMessageAt(conv.id, now);
+        // Echo back nothing to visitor (their UI already shows it locally).
+        // Operator-side dispatch happens in Phase 4. Phase-2 timer is added in Task 2.7.
+        logger.debug({ msgId: msgRow.id, conv: conv.id }, 'visitor chat_message stored');
+        break;
+      }
+
       default:
         break;
     }
