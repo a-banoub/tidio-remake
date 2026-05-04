@@ -7,6 +7,7 @@ import { RightPane } from './panels/RightPane.js';
 import { bootWs } from './wsBoot.js';
 import { PingModal } from './components/PingModal.js';
 import { Toast } from './components/Toast.js';
+import { startVisitorDetailAutoFetch } from './state/visitorDetail.js';
 
 function getRoute(): 'login' | 'main' {
   return tokenStore.get() ? 'main' : 'login';
@@ -14,7 +15,12 @@ function getRoute(): 'login' | 'main' {
 
 export function App() {
   const route = getRoute();
-  useEffect(() => { if (route === 'main') bootWs(); }, [route]);
+  useEffect(() => {
+    if (route === 'main') {
+      bootWs();
+      startVisitorDetailAutoFetch();
+    }
+  }, [route]);
 
   if (route === 'login') return <LoginPage />;
 
