@@ -14,6 +14,8 @@ import { newConversationId } from '../ids.js';
 import { logger } from '../logger.js';
 import { lookup } from '../geo/lookup.js';
 import UAParser from 'ua-parser-js';
+import * as pushDispatcher from '../push/dispatcher.js';
+import { shouldPushOperator } from '../push/shouldPush.js';
 
 type ConnState = { visitorId?: string; sessionId?: string };
 
@@ -209,6 +211,17 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         // Broadcast to operator console: new queued conversation (when newly created and queued)
         if (isNewConversation && initialStatus === 'queued') {
           deps.oc.broadcastTo(1, { type: 'conversation_queued', conversation: conv });
+        }
+        // Web Push notify operator if they are unavailable (offline/away/dnd/no-ws/quiet-hours).
+        const hasLiveOp = deps.oc.hasAnyConnection(1);
+        if (shouldPushOperator(op ?? undefined, hasLiveOp)) {
+          pushDispatcher
+            .pushToOperator(deps, 1, {
+              title: 'New message from visitor',
+              body: msg.body.slice(0, 100),
+              url: `/console/#/chat/${conv.id}`,
+            })
+            .catch((err) => logger.warn({ err }, 'push trigger failed'));
         }
         // Start Phase-2 capture timer for new queued conversations (operator offline).
         if (isNewConversation && initialStatus === 'queued') {
