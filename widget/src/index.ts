@@ -24,15 +24,25 @@ function init() {
 
   let conversationId: string | undefined;
 
+  function appendToStore(sender: 'visitor' | 'operator' | 'system', body: string) {
+    const stored = store.load() ?? { messages: [], openedAt: Date.now(), conversationId };
+    stored.messages.push({ id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, sender, body, sent_at: Date.now() });
+    stored.conversationId = conversationId;
+    store.save(stored);
+  }
+
   const ui = new WidgetUI({
-    onOpen: () => ws.send({ type: 'chat_open' }),
+    onOpen: () => {
+      ws.send({ type: 'chat_open' });
+      const stored = store.load();
+      if (stored && stored.messages.length > 0) {
+        ui.replay(stored.messages.map(m => ({ sender: m.sender, body: m.body })));
+      }
+    },
     onClose: () => {},
     onSend: (body) => {
       ws.send({ type: 'chat_message', body });
-      const stored = store.load() ?? { messages: [], openedAt: Date.now(), conversationId };
-      stored.messages.push({ id: `local-${Date.now()}`, sender: 'visitor', body, sent_at: Date.now() });
-      stored.conversationId = conversationId;
-      store.save(stored);
+      appendToStore('visitor', body);
     },
     onSubmitCapture: (data) => ws.send({ type: 'capture', ...data }),
   });
@@ -54,12 +64,20 @@ function init() {
         case 'welcome':
           conversationId = m.conversationId;
           ui.mount(!!m.operatorOnline);
-          if (Array.isArray(m.history)) {
-            for (const h of m.history) ui.showMessage({ sender: h.sender, body: h.body });
+          if (Array.isArray(m.history) && m.history.length > 0) {
+            // Server has authoritative history — overwrite local store with it.
+            const replayed = m.history.map((h: any) => ({
+              id: `srv-${h.sent_at ?? Date.now()}`,
+              sender: h.sender,
+              body: h.body,
+              sent_at: h.sent_at ?? Date.now(),
+            }));
+            store.save({ messages: replayed, openedAt: Date.now(), conversationId });
           }
           break;
         case 'operator_message':
           ui.showMessage({ sender: 'operator', body: m.body });
+          appendToStore('operator', m.body);
           break;
         case 'operator_typing':
           ui.showOperatorTyping(!!m.isTyping);
@@ -68,6 +86,8 @@ function init() {
           ui.open();
           ui.showMessage({ sender: 'system', body: '🔔 Alex jumped in to help' });
           ui.showMessage({ sender: 'operator', body: m.body });
+          appendToStore('system', '🔔 Alex jumped in to help');
+          appendToStore('operator', m.body);
           break;
         case 'phase_transition':
           ui.enterCapturePhase(m.phase === 'email_on_file' ? m.knownEmail : null);

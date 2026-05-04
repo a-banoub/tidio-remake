@@ -67,6 +67,14 @@ export class WidgetUI {
     this.body.scrollTop = this.body.scrollHeight;
   }
 
+  replay(messages: Array<{ sender: 'visitor' | 'operator' | 'system'; body: string }>) {
+    if (!this.body) return;
+    this.body.innerHTML = '';
+    for (const m of messages) this.showMessage(m);
+  }
+
+  hasBody(): boolean { return !!this.body; }
+
   showOperatorTyping(isTyping: boolean) {
     if (!this.body) return;
     const existing = this.body.querySelector('.s1031-typing');

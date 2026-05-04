@@ -1,5 +1,6 @@
 import { liveVisitors, conversations, operatorStatus, pendingAlerts } from './store.js';
 import type { LiveVisitor, Conversation, Message } from './types.js';
+import { notifyVisitorMessage } from '../notifications.js';
 
 export function applyWsMessage(msg: any): void {
   switch (msg?.type) {
@@ -67,6 +68,10 @@ export function applyWsMessage(msg: any): void {
       const conv = conversations.value[cid];
       if (conv) {
         conversations.value = { ...conversations.value, [cid]: { ...conv, messages: [...conv.messages, m], last_message_at: m.sent_at } };
+      }
+      if (m.sender === 'visitor') {
+        const visitor = conv ? liveVisitors.value[conv.visitor_id] : undefined;
+        notifyVisitorMessage({ name: visitor?.name ?? null, body: m.body });
       }
       break;
     }
