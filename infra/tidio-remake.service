@@ -1,0 +1,22 @@
+[Unit]
+Description=Tidio Remake live chat
+After=network.target
+
+[Service]
+Type=simple
+User=tidio
+Group=tidio
+WorkingDirectory=/opt/tidio-remake/server
+EnvironmentFile=/etc/tidio-remake/env
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+ProtectSystem=strict
+ReadWritePaths=/var/lib/tidio-remake /var/log/tidio-remake
+NoNewPrivileges=true
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target
