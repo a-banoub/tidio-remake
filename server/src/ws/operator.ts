@@ -5,9 +5,11 @@ import { OperatorTokensRepo } from '../repositories/operatorTokens.js';
 import { ConversationsRepo } from '../repositories/conversations.js';
 import { MessagesRepo } from '../repositories/messages.js';
 import { VisitorsRepo } from '../repositories/visitors.js';
+import { OperatorsRepo } from '../repositories/operators.js';
 import type { LiveSession } from '../live/sessions.js';
 import { parseOperatorMessage } from './operatorProtocol.js';
 import { logger } from '../logger.js';
+import { newConversationId } from '../ids.js';
 
 export function authenticateOperatorUpgrade(req: IncomingMessage, deps: ServerDeps): number | null {
   // Try Authorization: Bearer <token> first
@@ -59,12 +61,39 @@ export function handleOperatorConnection(ws: WebSocket, _req: IncomingMessage, d
         }));
         break;
       }
+      case 'open_chat': {
+        const visitorId = msg.visitorId;
+        const live = deps.ls.get(visitorId);
+        if (!live) {
+          deps.oc.broadcastTo(operatorId, { type: 'error', code: 'visitor_offline', visitorId });
+          break;
+        }
+        const cutoff = Date.now() - 60_000;
+        const conversationsRepo = new ConversationsRepo(deps.db);
+        const existing = conversationsRepo.findOpenForVisitor(visitorId, cutoff);
+        if (existing) {
+          deps.oc.broadcastTo(operatorId, { type: 'conversation_opened', conversationId: existing.id });
+          break;
+        }
+        const cid = newConversationId();
+        conversationsRepo.create({
+          id: cid, visitor_id: visitorId, opened_session_id: live.activeSessionId,
+          status: 'live', opened_at: Date.now(), initiated_by: 'operator',
+        });
+        deps.ls.patch(visitorId, { conversationId: cid });
+        deps.oc.broadcastTo(operatorId, { type: 'conversation_opened', conversationId: cid });
+        break;
+      }
+
       case 'send_message': {
         const conversationsRepo = new ConversationsRepo(deps.db);
         const conv = conversationsRepo.findById(msg.conversationId);
         if (!conv) return;
+        const messagesRepo = new MessagesRepo(deps.db);
+        const isFirstOperatorMsg = conv.initiated_by === 'operator'
+          && messagesRepo.listByConversation(conv.id).every(m => m.sender !== 'operator');
         const now = Date.now();
-        const m = new MessagesRepo(deps.db).insert({
+        const m = messagesRepo.insert({
           conversation_id: msg.conversationId, sender: 'operator',
           body: msg.body, sent_at: now, quick_reply_id: msg.quickReplyId ?? null,
         });
@@ -75,7 +104,11 @@ export function handleOperatorConnection(ws: WebSocket, _req: IncomingMessage, d
         }
         // Fan out to visitor's sockets
         const live = deps.ls.get(conv.visitor_id);
-        const visitorPayload = JSON.stringify({ type: 'operator_message', messageId: m.id, body: m.body, operatorName: 'Alex', sentAt: now });
+        const visitorPayload = JSON.stringify(
+          isFirstOperatorMsg
+            ? { type: 'operator_pinged_you', messageId: m.id, body: m.body, operatorName: 'Alex', sentAt: now }
+            : { type: 'operator_message', messageId: m.id, body: m.body, operatorName: 'Alex', sentAt: now }
+        );
         if (live) for (const sock of live.sockets) try { sock.send(visitorPayload); } catch {}
         // Echo back to operator (so other operator tabs see it)
         deps.oc.broadcastTo(operatorId, { type: 'new_message', conversationId: conv.id, message: m });
@@ -117,6 +150,12 @@ export function handleOperatorConnection(ws: WebSocket, _req: IncomingMessage, d
           if (live) for (const sock of live.sockets) try { sock.send(JSON.stringify({ type: 'system', body: 'This conversation has ended. Thanks for chatting!' })); } catch {}
         }
         deps.oc.broadcastTo(operatorId, { type: 'conversation_closed', conversationId: msg.conversationId });
+        break;
+      }
+
+      case 'set_status': {
+        new OperatorsRepo(deps.db).setStatus(operatorId, msg.status);
+        deps.oc.broadcastTo(operatorId, { type: 'status_changed', status: msg.status });
         break;
       }
 
