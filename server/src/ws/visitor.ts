@@ -68,6 +68,11 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
           conversationId: existing?.id,
           history: existing ? new MessagesRepo(deps.db).listByConversation(existing.id) : [],
         }));
+
+        // Broadcast to operator console: visitor appeared
+        const visitor = visitors.findById(msg.visitorId);
+        const session = sessions.findById(msg.sessionId);
+        deps.oc.broadcastTo(1, { type: 'visitor_appeared', visitor, session });
         break;
       }
       case 'presence': {
@@ -82,6 +87,12 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
             if (prev) pvRepo.leave(prev.id, now);
             pvRepo.enter(state.sessionId, msg.page.url, msg.page.title, now);
             deps.ls.patch(state.visitorId, { currentPage: { url: msg.page.url, title: msg.page.title, enteredAt: now } });
+            // Broadcast to operator console: visitor changed page
+            deps.oc.broadcastTo(1, {
+              type: 'visitor_updated',
+              visitorId: state.visitorId,
+              patch: { currentPage: { url: msg.page.url, title: msg.page.title, enteredAt: now } },
+            });
           }
         }
         if (typeof msg.scrollPct === 'number' && state.visitorId) {
@@ -98,9 +109,24 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         const lsRepo = new LeadSignalsRepo(deps.db);
         lsRepo.insert(state.sessionId, msg.kind, msg.payload, delta, Date.now());
         if (delta > 0) {
+          const prevScore = sessions.findById(state.sessionId)?.current_lead_score ?? 0;
           new SessionsRepo(deps.db).bumpLeadScore(state.sessionId, delta);
           const cur = (sessions.findById(state.sessionId)?.current_lead_score ?? 0);
           deps.ls.patch(state.visitorId, { leadScore: cur });
+          // Broadcast to operator console: lead score updated
+          deps.oc.broadcastTo(1, {
+            type: 'visitor_updated',
+            visitorId: state.visitorId,
+            patch: { leadScore: cur },
+          });
+          // High-priority alert when crossing the 8 threshold
+          if (prevScore < 8 && cur >= 8) {
+            deps.oc.broadcastTo(1, {
+              type: 'high_priority_alert',
+              visitorId: state.visitorId,
+              reason: 'lead_score_8',
+            });
+          }
         }
         break;
       }
@@ -139,6 +165,12 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         // Echo back nothing to visitor (their UI already shows it locally).
         // Operator-side dispatch happens in Phase 4.
         logger.debug({ msgId: msgRow.id, conv: conv.id }, 'visitor chat_message stored');
+        // Broadcast to operator console: new message received
+        deps.oc.broadcastTo(1, { type: 'new_message', conversationId: conv.id, message: msgRow });
+        // Broadcast to operator console: new queued conversation (when newly created and queued)
+        if (isNewConversation && initialStatus === 'queued') {
+          deps.oc.broadcastTo(1, { type: 'conversation_queued', conversation: conv });
+        }
         // Start Phase-2 capture timer for new queued conversations (operator offline).
         if (isNewConversation && initialStatus === 'queued') {
           deps.timers.start(conv.id, () => {
@@ -162,7 +194,11 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
       case 'typing': {
         if (!state.visitorId) break;
         deps.ls.patch(state.visitorId, { isTyping: msg.isTyping });
-        // Operator broadcast added in Phase 4
+        // Broadcast to operator console: visitor typing (only if there's an active conversation)
+        const live = deps.ls.get(state.visitorId);
+        if (live?.conversationId) {
+          deps.oc.broadcastTo(1, { type: 'visitor_typing', conversationId: live.conversationId, isTyping: msg.isTyping });
+        }
         break;
       }
 
@@ -188,6 +224,8 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
     if (state.visitorId) {
       deps.ls.remove(state.visitorId, ws);
       logger.debug({ visitorId: state.visitorId }, 'visitor ws closed');
+      // Broadcast to operator console: visitor disconnected (immediately, no grace period for v1)
+      deps.oc.broadcastTo(1, { type: 'visitor_left', visitorId: state.visitorId });
     }
   });
 }
