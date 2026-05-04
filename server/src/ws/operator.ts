@@ -4,6 +4,7 @@ import type { ServerDeps } from '../server.js';
 import { OperatorTokensRepo } from '../repositories/operatorTokens.js';
 import { ConversationsRepo } from '../repositories/conversations.js';
 import { MessagesRepo } from '../repositories/messages.js';
+import { VisitorsRepo } from '../repositories/visitors.js';
 import type { LiveSession } from '../live/sessions.js';
 import { parseOperatorMessage } from './operatorProtocol.js';
 import { logger } from '../logger.js';
@@ -48,7 +49,67 @@ export function handleOperatorConnection(ws: WebSocket, _req: IncomingMessage, d
         }));
         break;
       }
-      // Other handlers in 4.6+
+      case 'send_message': {
+        const conversationsRepo = new ConversationsRepo(deps.db);
+        const conv = conversationsRepo.findById(msg.conversationId);
+        if (!conv) return;
+        const now = Date.now();
+        const m = new MessagesRepo(deps.db).insert({
+          conversation_id: msg.conversationId, sender: 'operator',
+          body: msg.body, sent_at: now, quick_reply_id: msg.quickReplyId ?? null,
+        });
+        conversationsRepo.bumpLastMessageAt(msg.conversationId, now);
+        if (conv.status === 'queued') {
+          conversationsRepo.setStatus(msg.conversationId, 'live', now);
+          deps.timers.cancel(msg.conversationId);
+        }
+        // Fan out to visitor's sockets
+        const live = deps.ls.get(conv.visitor_id);
+        const visitorPayload = JSON.stringify({ type: 'operator_message', messageId: m.id, body: m.body, operatorName: 'Alex', sentAt: now });
+        if (live) for (const sock of live.sockets) try { sock.send(visitorPayload); } catch {}
+        // Echo back to operator (so other operator tabs see it)
+        deps.oc.broadcastTo(operatorId, { type: 'new_message', conversationId: conv.id, message: m });
+        break;
+      }
+
+      case 'typing': {
+        const conv = new ConversationsRepo(deps.db).findById(msg.conversationId);
+        if (!conv) return;
+        const live = deps.ls.get(conv.visitor_id);
+        const payload = JSON.stringify({ type: 'operator_typing', isTyping: msg.isTyping });
+        if (live) for (const sock of live.sockets) try { sock.send(payload); } catch {}
+        break;
+      }
+
+      case 'mark_seen': {
+        new MessagesRepo(deps.db).markAllSeenInConversation(msg.conversationId, msg.lastMessageId, Date.now());
+        const conv = new ConversationsRepo(deps.db).findById(msg.conversationId);
+        if (!conv) return;
+        const live = deps.ls.get(conv.visitor_id);
+        const payload = JSON.stringify({ type: 'seen', messageId: msg.lastMessageId, seenAt: Date.now() });
+        if (live) for (const sock of live.sockets) try { sock.send(payload); } catch {}
+        break;
+      }
+
+      case 'update_visitor': {
+        new VisitorsRepo(deps.db).updateContact(msg.visitorId, { name: msg.name, email: msg.email, phone: msg.phone });
+        deps.oc.broadcastTo(operatorId, { type: 'visitor_updated', visitorId: msg.visitorId, patch: { name: msg.name, email: msg.email, phone: msg.phone } });
+        break;
+      }
+
+      case 'end_chat': {
+        const conversationsRepo = new ConversationsRepo(deps.db);
+        conversationsRepo.setStatus(msg.conversationId, 'closed', Date.now());
+        deps.timers.cancel(msg.conversationId);
+        const conv = conversationsRepo.findById(msg.conversationId);
+        if (conv) {
+          const live = deps.ls.get(conv.visitor_id);
+          if (live) for (const sock of live.sockets) try { sock.send(JSON.stringify({ type: 'system', body: 'This conversation has ended. Thanks for chatting!' })); } catch {}
+        }
+        deps.oc.broadcastTo(operatorId, { type: 'conversation_closed', conversationId: msg.conversationId });
+        break;
+      }
+
       default:
         break;
     }
