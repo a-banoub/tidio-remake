@@ -7,6 +7,9 @@ import { SessionsRepo } from '../repositories/sessions.js';
 import { OperatorsRepo } from '../repositories/operators.js';
 import { ConversationsRepo } from '../repositories/conversations.js';
 import { MessagesRepo } from '../repositories/messages.js';
+import { PageViewsRepo } from '../repositories/pageViews.js';
+import { LeadSignalsRepo } from '../repositories/leadSignals.js';
+import { scoreFor } from '../leadScore/compute.js';
 import { logger } from '../logger.js';
 
 type ConnState = { visitorId?: string; sessionId?: string };
@@ -48,6 +51,7 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
           city: null, region: null, country: null, timezone: null,
           device_type: null, browser: null, os: null,
         });
+        new PageViewsRepo(deps.db).enter(msg.sessionId, msg.page.url, msg.page.title, now);
         deps.ls.add(msg.visitorId, msg.sessionId, ws, { url: msg.page.url, title: msg.page.title, enteredAt: now });
 
         const op = operators.findById(1);
@@ -65,8 +69,41 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         }));
         break;
       }
+      case 'presence': {
+        if (!state.visitorId || !state.sessionId) break;
+        if (msg.page) {
+          const live = deps.ls.get(state.visitorId);
+          const oldUrl = live?.currentPage.url;
+          const now = Date.now();
+          if (oldUrl !== msg.page.url) {
+            const pvRepo = new PageViewsRepo(deps.db);
+            const prev = pvRepo.listForSession(state.sessionId).filter(p => !p.left_at).pop();
+            if (prev) pvRepo.leave(prev.id, now);
+            pvRepo.enter(state.sessionId, msg.page.url, msg.page.title, now);
+            deps.ls.patch(state.visitorId, { currentPage: { url: msg.page.url, title: msg.page.title, enteredAt: now } });
+          }
+        }
+        if (typeof msg.scrollPct === 'number' && state.visitorId) {
+          deps.ls.patch(state.visitorId, { scrollPct: msg.scrollPct });
+          const pvRepo = new PageViewsRepo(deps.db);
+          const cur = pvRepo.listForSession(state.sessionId).filter(p => !p.left_at).pop();
+          if (cur) pvRepo.updateScroll(cur.id, msg.scrollPct);
+        }
+        break;
+      }
+      case 'lead_signal': {
+        if (!state.sessionId || !state.visitorId) break;
+        const delta = scoreFor(msg.kind);
+        const lsRepo = new LeadSignalsRepo(deps.db);
+        lsRepo.insert(state.sessionId, msg.kind, msg.payload, delta, Date.now());
+        if (delta > 0) {
+          new SessionsRepo(deps.db).bumpLeadScore(state.sessionId, delta);
+          const cur = (sessions.findById(state.sessionId)?.current_lead_score ?? 0);
+          deps.ls.patch(state.visitorId, { leadScore: cur });
+        }
+        break;
+      }
       default:
-        // Other handlers in Task 2.5+
         break;
     }
   });
