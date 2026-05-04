@@ -10,17 +10,22 @@ import { logger } from './logger.js';
 import { handleVisitorConnection } from './ws/visitor.js';
 import { authenticateOperatorUpgrade, handleOperatorConnection } from './ws/operator.js';
 import { PhaseTransitionTimers } from './timers/phaseTransition.js';
+import { OperatorClients } from './live/operatorClients.js';
 import { loginRouter } from './api/login.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WIDGET_DIST = resolve(__dirname, '..', '..', 'widget', 'dist');
 
-export type ServerDeps = { db: DB; ls: LiveSessions; env: Env; timers: PhaseTransitionTimers };
+export type ServerDeps = { db: DB; ls: LiveSessions; env: Env; timers: PhaseTransitionTimers; oc: OperatorClients };
 
-export type ServerDepsInput = Omit<ServerDeps, 'timers'> & { timers?: PhaseTransitionTimers };
+export type ServerDepsInput = Omit<ServerDeps, 'timers' | 'oc'> & { timers?: PhaseTransitionTimers; oc?: OperatorClients };
 
 export function createServer(input: ServerDepsInput): Server {
-  const deps: ServerDeps = { ...input, timers: input.timers ?? new PhaseTransitionTimers() };
+  const deps: ServerDeps = {
+    ...input,
+    timers: input.timers ?? new PhaseTransitionTimers(),
+    oc: input.oc ?? new OperatorClients(),
+  };
 
   const app: Express = express();
   app.use(express.json({ limit: '64kb' }));
