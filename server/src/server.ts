@@ -16,6 +16,7 @@ import { quickRepliesRouter } from './api/quickReplies.js';
 import { visitorDetailRouter } from './api/visitorDetail.js';
 import { settingsRouter } from './api/settings.js';
 import { pushSubscribeRouter } from './api/pushSubscribe.js';
+import { setupRouter } from './api/setup.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WIDGET_DIST = resolve(__dirname, '..', '..', 'widget', 'dist');
@@ -38,6 +39,7 @@ export function createServer(input: ServerDepsInput): Server {
     res.json({ status: 'ok', uptime: process.uptime() });
   });
 
+  app.use('/api/operator', setupRouter(deps));
   app.use('/api/operator', loginRouter(deps));
   app.use('/api/operator', pushSubscribeRouter(deps));
   app.use('/api/operator/quick-replies', quickRepliesRouter(deps));

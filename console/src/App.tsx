@@ -1,6 +1,7 @@
-import { useEffect } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { tokenStore } from './auth/tokenStore.js';
 import { LoginPage } from './auth/LoginPage.js';
+import { SetupPage } from './auth/SetupPage.js';
 import { LeftPane } from './panels/LeftPane.js';
 import { MiddlePane } from './panels/MiddlePane.js';
 import { RightPane } from './panels/RightPane.js';
@@ -10,12 +11,35 @@ import { Toast } from './components/Toast.js';
 import { startVisitorDetailAutoFetch } from './state/visitorDetail.js';
 import { registerPush } from './push/subscribe.js';
 
-function getRoute(): 'login' | 'main' {
-  return tokenStore.get() ? 'main' : 'login';
-}
+type Route = 'loading' | 'setup' | 'login' | 'main';
 
 export function App() {
-  const route = getRoute();
+  const [route, setRoute] = useState<Route>('loading');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/operator/setup-status');
+        if (cancelled) return;
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.needsSetup) {
+            setRoute('setup');
+            return;
+          }
+        }
+      } catch {
+        // Network error — fall through to existing token-based route.
+      }
+      if (cancelled) return;
+      setRoute(tokenStore.get() ? 'main' : 'login');
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (route === 'main') {
       bootWs();
@@ -30,6 +54,8 @@ export function App() {
     }
   }, [route]);
 
+  if (route === 'loading') return null;
+  if (route === 'setup') return <SetupPage />;
   if (route === 'login') return <LoginPage />;
 
   return (
