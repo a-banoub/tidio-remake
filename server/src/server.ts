@@ -8,6 +8,7 @@ import type { LiveSessions } from './live/sessions.js';
 import type { Env } from './env.js';
 import { logger } from './logger.js';
 import { handleVisitorConnection } from './ws/visitor.js';
+import { authenticateOperatorUpgrade, handleOperatorConnection } from './ws/operator.js';
 import { PhaseTransitionTimers } from './timers/phaseTransition.js';
 import { loginRouter } from './api/login.js';
 
@@ -37,11 +38,16 @@ export function createServer(input: ServerDepsInput): Server {
 
   const server = createHttpServer(app);
   const wssVisitor = new WebSocketServer({ noServer: true });
+  const wssOperator = new WebSocketServer({ noServer: true });
 
   server.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url ?? '/', 'http://x');
     if (url.pathname === '/ws/visitor') {
       wssVisitor.handleUpgrade(req, socket, head, (ws) => handleVisitorConnection(ws, req, deps));
+    } else if (url.pathname === '/ws/operator') {
+      const opId = authenticateOperatorUpgrade(req, deps);
+      if (opId == null) { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return; }
+      wssOperator.handleUpgrade(req, socket, head, (ws) => handleOperatorConnection(ws, req, deps, opId));
     } else {
       socket.destroy();
     }
