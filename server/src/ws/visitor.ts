@@ -10,6 +10,7 @@ import { MessagesRepo } from '../repositories/messages.js';
 import { PageViewsRepo } from '../repositories/pageViews.js';
 import { LeadSignalsRepo } from '../repositories/leadSignals.js';
 import { scoreFor } from '../leadScore/compute.js';
+import { WARM_VISITOR_DWELL_MS } from '../timers/warmVisitor.js';
 import { newConversationId } from '../ids.js';
 import { logger } from '../logger.js';
 import { lookup } from '../geo/lookup.js';
@@ -103,6 +104,17 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
           if (cur >= 8) {
             deps.oc.broadcastTo(1, { type: 'high_priority_alert', visitorId: msg.visitorId, reason: 'lead_score_8' });
           }
+        }
+
+        // Warm-visitor alert: start the dwell timer if this session is already
+        // showing buying intent (score > 0) and there's no open conversation.
+        const currentScore = sessions.findById(msg.sessionId)?.current_lead_score ?? 0;
+        const cutoffWarm = now - 30 * 24 * 60 * 60 * 1000;
+        const existingConvForWarm = conversations.findOpenForVisitor(msg.visitorId, cutoffWarm);
+        if (currentScore > 0 && !existingConvForWarm) {
+          deps.warmTimers.start(msg.visitorId, msg.sessionId, WARM_VISITOR_DWELL_MS, () => {
+            // onFire body wired in Task 7
+          });
         }
 
         const op = operators.findById(1);
