@@ -198,3 +198,71 @@ describe('warm-visitor alert: operator open_chat cancel', () => {
     ows.close();
   });
 });
+
+describe('warm-visitor alert: fire path', () => {
+  beforeEach(() => {
+    process.env.TEST_WARM_VISITOR_DWELL_MS = '50';
+  });
+  afterEach(() => {
+    delete process.env.TEST_WARM_VISITOR_DWELL_MS;
+  });
+
+  it('emits warm_visitor_alert + calls pushToOperator after dwell elapses', async () => {
+    const dispatcher = await import('../../src/push/dispatcher.js');
+    const pushSpy = vi.spyOn(dispatcher, 'pushToOperator').mockResolvedValue(undefined);
+
+    const opsRepo = new (await import('../../src/repositories/operators.js')).OperatorsRepo(db);
+    const opId = opsRepo.create({
+      email: 'a@b', password_hash: 'x', display_name: 'A', created_at: Date.now(),
+    });
+
+    const tokenRepo = new (await import('../../src/repositories/operatorTokens.js')).OperatorTokensRepo(db);
+    const token = 'tok_' + Math.random().toString(36).slice(2);
+    tokenRepo.create(token, opId, Date.now() + 60_000);
+
+    const seenAlerts: any[] = [];
+    const ows = new WebSocket(`ws://127.0.0.1:${port}/ws/operator?token=${token}`);
+    await new Promise<void>((r) => ows.on('open', () => r()));
+    ows.send(JSON.stringify({ type: 'subscribe' }));
+    ows.on('message', (m) => {
+      const parsed = JSON.parse(m.toString());
+      if (parsed.type === 'warm_visitor_alert') seenAlerts.push(parsed);
+    });
+    await new Promise((r) => setTimeout(r, 50));
+
+    const visitorId = newVisitorId();
+    const sessionId = newSessionId();
+    const vws = new WebSocket(`ws://127.0.0.1:${port}/ws/visitor`);
+    await new Promise<void>((r) => vws.on('open', () => r()));
+    vws.send(JSON.stringify({
+      type: 'hello', visitorId, sessionId,
+      page: { url: 'https://simple1031x.com/lp/start-your-1031', title: 'Start' },
+      utms: { gclid: 'x' }, referrer: null, userAgent: 'Mozilla/5.0',
+    }));
+    await new Promise((r) => vws.on('message', (m) => r(JSON.parse(m.toString()))));
+
+    // Wait > 50ms for the timer to fire
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(seenAlerts).toHaveLength(1);
+    expect(seenAlerts[0]).toMatchObject({
+      type: 'warm_visitor_alert',
+      visitorId,
+      sessionId,
+      reason: 'warm_dwell_90s',
+    });
+    expect(seenAlerts[0].leadScore).toBeGreaterThan(0);
+    expect(seenAlerts[0].page).toContain('/lp/start-your-1031');
+
+    expect(pushSpy).toHaveBeenCalledTimes(1);
+    expect(pushSpy.mock.calls[0][1]).toBe(1); // server always pushes to op#1
+    expect(pushSpy.mock.calls[0][2]).toMatchObject({
+      title: 'Warm visitor on site',
+      url: `/console/?ping=${visitorId}`,
+    });
+
+    pushSpy.mockRestore();
+    vws.close();
+    ows.close();
+  }, 5000);
+});

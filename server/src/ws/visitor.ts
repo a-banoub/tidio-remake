@@ -20,6 +20,16 @@ import { shouldPushOperator } from '../push/shouldPush.js';
 
 type ConnState = { visitorId?: string; sessionId?: string };
 
+function dwellMsForEnv(): number {
+  const override = process.env.TEST_WARM_VISITOR_DWELL_MS;
+  if (override && /^\d+$/.test(override)) return Number(override);
+  return WARM_VISITOR_DWELL_MS;
+}
+
+function pathOf(url: string): string {
+  try { return new URL(url).pathname; } catch { return url; }
+}
+
 export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, deps: ServerDeps): void {
   const state: ConnState = {};
   const visitors = new VisitorsRepo(deps.db);
@@ -27,6 +37,30 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
   const operators = new OperatorsRepo(deps.db);
   const conversations = new ConversationsRepo(deps.db);
   const _messages = new MessagesRepo(deps.db);
+
+  function fireWarmVisitorAlert(visitorId: string, sessionId: string, currentPageUrl: string): void {
+    const session = sessions.findById(sessionId);
+    const leadScore = session?.current_lead_score ?? 0;
+    const dwellMs = dwellMsForEnv();
+    const page = currentPageUrl;
+    const alert = {
+      type: 'warm_visitor_alert' as const,
+      visitorId,
+      sessionId,
+      leadScore,
+      page,
+      dwellMs,
+      reason: 'warm_dwell_90s' as const,
+    };
+    deps.oc.broadcastTo(1, alert);
+    pushDispatcher
+      .pushToOperator(deps, 1, {
+        title: 'Warm visitor on site',
+        body: `${pathOf(page)} · score ${leadScore}, here ${Math.round(dwellMs / 1000)}s`,
+        url: `/console/?ping=${visitorId}`,
+      })
+      .catch((err) => logger.warn({ err }, 'warm-visitor push failed'));
+  }
 
   ws.on('message', (raw) => {
     const msg = parseVisitorMessage(raw.toString());
@@ -112,8 +146,8 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         const cutoffWarm = now - 30 * 24 * 60 * 60 * 1000;
         const existingConvForWarm = conversations.findOpenForVisitor(msg.visitorId, cutoffWarm);
         if (currentScore > 0 && !existingConvForWarm) {
-          deps.warmTimers.start(msg.visitorId, msg.sessionId, WARM_VISITOR_DWELL_MS, () => {
-            // onFire body wired in Task 7
+          deps.warmTimers.start(msg.visitorId, msg.sessionId, dwellMsForEnv(), () => {
+            fireWarmVisitorAlert(msg.visitorId, msg.sessionId, msg.page.url);
           });
         }
 
@@ -186,8 +220,11 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
             const cutoffWarm = Date.now() - 30 * 24 * 60 * 60 * 1000;
             const existingConvForWarm = conversations.findOpenForVisitor(state.visitorId, cutoffWarm);
             if (!existingConvForWarm) {
-              deps.warmTimers.start(state.visitorId, state.sessionId, WARM_VISITOR_DWELL_MS, () => {
-                // onFire body wired in Task 7
+              const currentUrlForWarm = deps.ls.get(state.visitorId)?.currentPage.url ?? '';
+              const sId = state.sessionId;
+              const vId = state.visitorId;
+              deps.warmTimers.start(vId, sId, dwellMsForEnv(), () => {
+                fireWarmVisitorAlert(vId, sId, currentUrlForWarm);
               });
             }
           }
