@@ -159,6 +159,26 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         break;
       }
 
+      case 'typing': {
+        if (!state.visitorId) break;
+        deps.ls.patch(state.visitorId, { isTyping: msg.isTyping });
+        // Operator broadcast added in Phase 4
+        break;
+      }
+
+      case 'capture': {
+        if (!state.visitorId) break;
+        visitors.updateContact(state.visitorId, { name: msg.name, email: msg.email, phone: msg.phone });
+        const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        const conv = conversations.findOpenForVisitor(state.visitorId, cutoff);
+        if (conv) {
+          conversations.setTimeoutCapture(conv.id, { name: msg.name, email: msg.email, phone: msg.phone });
+          conversations.setStatus(conv.id, 'closed_for_followup', Date.now());
+          deps.timers.cancel(conv.id);
+        }
+        break;
+      }
+
       default:
         break;
     }
