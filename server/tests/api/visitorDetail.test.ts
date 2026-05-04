@@ -54,10 +54,26 @@ describe('visitor detail REST', () => {
     expect(res.body.pageViews).toEqual([]);
     expect(res.body.leadSignals).toEqual([]);
     expect(res.body.recentConversations).toEqual([]);
+    expect(res.body.visitCount).toBe(1);
   });
 
   it('returns 404 for unknown visitor', async () => {
     const res = await get('/api/operator/visitor/v_nonexistent');
     expect(res.status).toBe(404);
+  });
+
+  it('returns visitCount=2 for a returning visitor with 2 sessions', async () => {
+    new SessionsRepo(db).create({
+      id: 's_bbbbbbbbbbbb', visitor_id: 'v_aaaaaaaaaaaa', started_at: 2500,
+      landing_url: '/y', utm_source: null, utm_medium: null, utm_campaign: null,
+      utm_term: null, utm_content: null, gclid: null, fbclid: null, referrer: null,
+      ip: null, city: null, region: null, country: null, timezone: null,
+      device_type: null, browser: null, os: null,
+    });
+    const res = await get('/api/operator/visitor/v_aaaaaaaaaaaa');
+    expect(res.status).toBe(200);
+    expect(res.body.visitCount).toBe(2);
+    // Most recent session is the new one
+    expect(res.body.session.id).toBe('s_bbbbbbbbbbbb');
   });
 });

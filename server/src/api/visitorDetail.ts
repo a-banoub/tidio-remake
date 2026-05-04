@@ -30,7 +30,12 @@ export function visitorDetailRouter(deps: ServerDeps) {
       'SELECT * FROM conversations WHERE visitor_id = ? ORDER BY last_message_at DESC LIMIT 10'
     ).all(visitorId);
 
-    res.json({ visitor, session, pageViews, leadSignals, recentConversations });
+    const countRow = deps.db.prepare(
+      'SELECT COUNT(*) as n FROM sessions WHERE visitor_id = ?'
+    ).get(visitorId) as { n: number } | undefined;
+    const visitCount = countRow ? countRow.n : 0;
+
+    res.json({ visitor, session, pageViews, leadSignals, recentConversations, visitCount });
   });
 
   return router;
