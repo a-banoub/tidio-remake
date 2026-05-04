@@ -37,6 +37,12 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         const now = Date.now();
         const ipRaw = (req.socket.remoteAddress ?? '').replace(/^::ffff:/, '');
         visitors.upsert(msg.visitorId, now);
+
+        // Re-fetch to read first_seen_at (upsert preserves it for returning visitors)
+        const visitorRow = visitors.findById(msg.visitorId);
+        const REPEAT_VISITOR_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+        const isReturning = !!(visitorRow && (now - visitorRow.first_seen_at) >= REPEAT_VISITOR_THRESHOLD_MS);
+
         sessions.create({
           id: msg.sessionId, visitor_id: msg.visitorId, started_at: now,
           landing_url: msg.page.url,
@@ -54,6 +60,31 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         });
         new PageViewsRepo(deps.db).enter(msg.sessionId, msg.page.url, msg.page.title, now);
         deps.ls.add(msg.visitorId, msg.sessionId, ws, { url: msg.page.url, title: msg.page.title, enteredAt: now });
+
+        // Auto-derived lead signals
+        const lsRepo = new LeadSignalsRepo(deps.db);
+        let totalDelta = 0;
+
+        function autoSignal(kind: string, payload: unknown = null) {
+          const delta = scoreFor(kind);
+          lsRepo.insert(msg.sessionId, kind, payload, delta, now);
+          totalDelta += delta;
+        }
+
+        if (isReturning) autoSignal('returning_visitor');
+        if (msg.utms.gclid) autoSignal('google_ads_click', { gclid: msg.utms.gclid });
+        const url = msg.page.url.toLowerCase();
+        if (url.includes('/pricing') || url.includes('/lp/start-your-1031')) autoSignal('pricing_page_view');
+
+        if (totalDelta > 0) {
+          sessions.bumpLeadScore(msg.sessionId, totalDelta);
+          const cur = sessions.findById(msg.sessionId)?.current_lead_score ?? 0;
+          deps.ls.patch(msg.visitorId, { leadScore: cur });
+          deps.oc.broadcastTo(1, { type: 'visitor_updated', visitorId: msg.visitorId, patch: { leadScore: cur } });
+          if (cur >= 8) {
+            deps.oc.broadcastTo(1, { type: 'high_priority_alert', visitorId: msg.visitorId, reason: 'lead_score_8' });
+          }
+        }
 
         const op = operators.findById(1);
         const operatorOnline = op?.status === 'online';
