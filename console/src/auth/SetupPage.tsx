@@ -30,8 +30,7 @@ export function SetupPage() {
         body: JSON.stringify({ email, displayName, password }),
       });
       if (res.status === 409) {
-        // Already set up — send the user to login.
-        window.location.hash = '#/login';
+        window.location.reload();
         return;
       }
       if (!res.ok) {
@@ -41,7 +40,7 @@ export function SetupPage() {
       const data = await res.json();
       if (data?.token) {
         tokenStore.set(data.token);
-        window.location.hash = '#/';
+        window.location.reload();
       } else {
         setError('Setup succeeded but no token was returned.');
       }
