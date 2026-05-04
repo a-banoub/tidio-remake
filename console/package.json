@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "vitest run",
-    "lint": "eslint src tests --ext .ts,.tsx"
+    "test": "vitest run"
   },
   "dependencies": {
     "@preact/signals": "^1.2.0",

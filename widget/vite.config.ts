@@ -10,7 +10,7 @@ export default defineConfig({
     },
     rollupOptions: { output: { extend: true } },
     cssCodeSplit: false,
-    minify: 'terser',
+    minify: 'esbuild',
     sourcemap: true,
     outDir: 'dist',
     emptyOutDir: true,
