@@ -69,3 +69,41 @@ describe('warm-visitor alert: hello hook', () => {
     ws.close();
   });
 });
+
+describe('warm-visitor alert: lead_signal hook', () => {
+  it('starts the timer when a lead_signal pushes score from 0 to positive', async () => {
+    const visitorId = newVisitorId();
+    const sessionId = newSessionId();
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/visitor`);
+    await new Promise<void>((r) => ws.on('open', () => r()));
+    await helloAndWaitForWelcome(ws, {
+      type: 'hello', visitorId, sessionId,
+      page: { url: 'https://simple1031x.com/about', title: 'About' },
+      utms: {}, referrer: null, userAgent: 'Mozilla/5.0',
+    });
+    expect(startSpy).not.toHaveBeenCalled();
+    // Send a lead signal whose kind has positive score in compute.ts:
+    ws.send(JSON.stringify({ type: 'lead_signal', kind: 'pricing_page_view', payload: null }));
+    // Allow event-loop turn for the message to be processed
+    await new Promise((r) => setTimeout(r, 50));
+    expect(startSpy).toHaveBeenCalledTimes(1);
+    expect(startSpy).toHaveBeenCalledWith(visitorId, sessionId, 90_000, expect.any(Function));
+    ws.close();
+  });
+
+  it('does NOT start the timer for a lead_signal with zero delta', async () => {
+    const visitorId = newVisitorId();
+    const sessionId = newSessionId();
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/visitor`);
+    await new Promise<void>((r) => ws.on('open', () => r()));
+    await helloAndWaitForWelcome(ws, {
+      type: 'hello', visitorId, sessionId,
+      page: { url: 'https://simple1031x.com/about', title: 'About' },
+      utms: {}, referrer: null, userAgent: 'Mozilla/5.0',
+    });
+    ws.send(JSON.stringify({ type: 'lead_signal', kind: 'unknown_signal', payload: null }));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(startSpy).not.toHaveBeenCalled();
+    ws.close();
+  });
+});

@@ -181,6 +181,16 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
             visitorId: state.visitorId,
             patch: { leadScore: cur },
           });
+          // Warm-visitor alert: start dwell timer when score newly becomes positive.
+          if (prevScore === 0 && cur > 0) {
+            const cutoffWarm = Date.now() - 30 * 24 * 60 * 60 * 1000;
+            const existingConvForWarm = conversations.findOpenForVisitor(state.visitorId, cutoffWarm);
+            if (!existingConvForWarm) {
+              deps.warmTimers.start(state.visitorId, state.sessionId, WARM_VISITOR_DWELL_MS, () => {
+                // onFire body wired in Task 7
+              });
+            }
+          }
           // High-priority alert when crossing the 8 threshold
           if (prevScore < 8 && cur >= 8) {
             deps.oc.broadcastTo(1, {
