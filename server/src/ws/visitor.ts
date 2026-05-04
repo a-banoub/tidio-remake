@@ -12,6 +12,8 @@ import { LeadSignalsRepo } from '../repositories/leadSignals.js';
 import { scoreFor } from '../leadScore/compute.js';
 import { newConversationId } from '../ids.js';
 import { logger } from '../logger.js';
+import { lookup } from '../geo/lookup.js';
+import UAParser from 'ua-parser-js';
 
 type ConnState = { visitorId?: string; sessionId?: string };
 
@@ -43,6 +45,12 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         const REPEAT_VISITOR_THRESHOLD_MS = 24 * 60 * 60 * 1000;
         const isReturning = !!(visitorRow && (now - visitorRow.first_seen_at) >= REPEAT_VISITOR_THRESHOLD_MS);
 
+        const ip = ipRaw || null;
+        const geo = lookup(ip);
+        const ua = new UAParser(msg.userAgent ?? '').getResult();
+        const device_type = ua.device.type ?? 'desktop';
+        const browser = ua.browser.name ?? null;
+        const os = ua.os.name ?? null;
         sessions.create({
           id: msg.sessionId, visitor_id: msg.visitorId, started_at: now,
           landing_url: msg.page.url,
@@ -54,9 +62,9 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
           gclid: msg.utms.gclid ?? null,
           fbclid: msg.utms.fbclid ?? null,
           referrer: msg.referrer,
-          ip: ipRaw || null,
-          city: null, region: null, country: null, timezone: null,
-          device_type: null, browser: null, os: null,
+          ip,
+          city: geo.city, region: geo.region, country: geo.country, timezone: geo.timezone,
+          device_type, browser, os,
         });
         new PageViewsRepo(deps.db).enter(msg.sessionId, msg.page.url, msg.page.title, now);
         deps.ls.add(msg.visitorId, msg.sessionId, ws, { url: msg.page.url, title: msg.page.title, enteredAt: now });

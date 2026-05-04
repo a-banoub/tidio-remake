@@ -5,8 +5,10 @@ import { LiveSessions } from './live/sessions.js';
 import { PhaseTransitionTimers } from './timers/phaseTransition.js';
 import { createServer } from './server.js';
 import { logger } from './logger.js';
+import { loadGeoDb } from './geo/lookup.js';
 
 const env = loadEnv();
+await loadGeoDb(env.GEOIP_DB_PATH || null);
 const db = openDb(env.DATABASE_PATH);
 migrate(db);
 const ls = new LiveSessions();
