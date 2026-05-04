@@ -71,8 +71,18 @@ self.addEventListener('push', (event: PushEvent) => {
     data: { url: data.url ?? '/console/' },
     icon: '/console/icons/icon-192.png',
     badge: '/console/icons/icon-192.png',
-  };
-  event.waitUntil(self.registration.showNotification(title, options));
+    tag: 'tidio-remake-push',
+    renotify: true,
+  } as any;
+  event.waitUntil((async () => {
+    // If a console window on THIS device is focused, the operator is already
+    // looking at it — skip the OS notification. Each device evaluates
+    // independently (phone SW doesn't see desktop windows and vice versa).
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const anyFocused = clients.some((c) => (c as WindowClient).focused === true);
+    if (anyFocused) return;
+    await self.registration.showNotification(title, options);
+  })());
 });
 
 self.addEventListener('notificationclick', (event: NotificationEvent) => {

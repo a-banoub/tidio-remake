@@ -231,28 +231,59 @@ describe('service worker', () => {
     expect(cacheStore.put).not.toHaveBeenCalled();
   });
 
-  it('on push: shows a notification with parsed payload', async () => {
+  it('on push: shows a notification when no client is focused', async () => {
     const { listeners, fakeSelf } = setupSwGlobals({});
+    fakeSelf.clients.matchAll.mockResolvedValueOnce([]);
     await loadSw();
+    let waited: Promise<unknown> | undefined;
     listeners.push({
       data: { json: () => ({ title: 'New chat', body: 'hi', url: '/console/?cid=1' }) },
-      waitUntil: (_p: unknown) => {},
+      waitUntil: (p: Promise<unknown>) => { waited = p; },
     });
+    await waited;
     expect(fakeSelf.registration.showNotification).toHaveBeenCalledWith(
       'New chat',
       expect.objectContaining({
         body: 'hi',
         data: { url: '/console/?cid=1' },
         icon: '/console/icons/icon-192.png',
-        badge: '/console/icons/icon-192.png',
       }),
     );
   });
 
+  it('on push: SKIPS notification when a client window is focused on this device', async () => {
+    const { listeners, fakeSelf } = setupSwGlobals({});
+    fakeSelf.clients.matchAll.mockResolvedValueOnce([{ focused: true, url: 'https://x/console/' }]);
+    await loadSw();
+    let waited: Promise<unknown> | undefined;
+    listeners.push({
+      data: { json: () => ({ title: 'X', body: 'y' }) },
+      waitUntil: (p: Promise<unknown>) => { waited = p; },
+    });
+    await waited;
+    expect(fakeSelf.registration.showNotification).not.toHaveBeenCalled();
+  });
+
+  it('on push: shows notification when a client exists but is NOT focused', async () => {
+    const { listeners, fakeSelf } = setupSwGlobals({});
+    fakeSelf.clients.matchAll.mockResolvedValueOnce([{ focused: false, url: 'https://x/console/' }]);
+    await loadSw();
+    let waited: Promise<unknown> | undefined;
+    listeners.push({
+      data: { json: () => ({ title: 'X', body: 'y' }) },
+      waitUntil: (p: Promise<unknown>) => { waited = p; },
+    });
+    await waited;
+    expect(fakeSelf.registration.showNotification).toHaveBeenCalled();
+  });
+
   it('on push: falls back to defaults when payload is missing', async () => {
     const { listeners, fakeSelf } = setupSwGlobals({});
+    fakeSelf.clients.matchAll.mockResolvedValueOnce([]);
     await loadSw();
-    listeners.push({ data: null, waitUntil: (_p: unknown) => {} });
+    let waited: Promise<unknown> | undefined;
+    listeners.push({ data: null, waitUntil: (p: Promise<unknown>) => { waited = p; } });
+    await waited;
     expect(fakeSelf.registration.showNotification).toHaveBeenCalledWith(
       'New chat',
       expect.objectContaining({ body: '', data: { url: '/console/' } }),

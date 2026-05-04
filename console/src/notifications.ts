@@ -1,10 +1,10 @@
-// Browser notification helper. Distinct from VAPID Web Push:
-// - Web Push: server pushes to subscribed browsers even when console tab is closed
-// - Notification API (here): fires while console tab is open but backgrounded
+// In-page feedback for inbound visitor messages.
 //
-// We trigger a Notification on inbound visitor messages whenever the document
-// is hidden, plus title flash + sound, so the operator can hear/see it from
-// another tab or window.
+// OS-level notifications come from the service worker's push handler, which
+// fires for every message regardless of which device is online. This module
+// only handles in-page affordances: ping sound + title-bar unread count.
+// We deliberately don't call `new Notification(...)` here anymore — that
+// used to double-fire alongside the SW push notification.
 
 const SOUND_DATA_URL =
   'data:audio/wav;base64,UklGRoQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YWAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIA=';
@@ -21,31 +21,12 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
   try { return await Notification.requestPermission(); } catch { return 'denied'; }
 }
 
-export function notifyVisitorMessage(opts: { name?: string | null; body: string }) {
+export function notifyVisitorMessage(_opts: { name?: string | null; body: string }) {
   if (typeof document === 'undefined') return;
   if (document.visibilityState !== 'hidden') return;
-
   unread++;
   flashTitle();
   playPing();
-  fireDesktop(opts);
-}
-
-function fireDesktop(opts: { name?: string | null; body: string }) {
-  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-  try {
-    const title = opts.name ? `New message from ${opts.name}` : 'New visitor message';
-    const n = new Notification(title, {
-      body: opts.body.slice(0, 140),
-      icon: '/console/icons/icon-192.png',
-      tag: 'tidio-remake-visitor-msg',
-      renotify: true,
-    } as NotificationOptions & { renotify: boolean });
-    n.onclick = () => {
-      try { window.focus(); } catch {}
-      try { n.close(); } catch {}
-    };
-  } catch {}
 }
 
 function playPing() {

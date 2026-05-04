@@ -1,22 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
-// Mock global Notification before importing the module under test
-class MockNotification {
-  static permission: NotificationPermission = 'default';
-  static requestPermission = vi.fn(async () => MockNotification.permission);
-  title: string;
-  options: NotificationOptions | undefined;
-  onclick: (() => void) | null = null;
-  static instances: MockNotification[] = [];
-  constructor(title: string, options?: NotificationOptions) {
-    this.title = title;
-    this.options = options;
-    MockNotification.instances.push(this);
-  }
-  close() {}
-}
-(globalThis as any).Notification = MockNotification;
-
 const playMock = vi.fn();
 class MockAudio {
   src: string;
@@ -29,10 +12,8 @@ class MockAudio {
 
 import { notifyVisitorMessage, requestNotificationPermission, clearUnread, _resetForTests } from '../src/notifications.js';
 
-describe('notifications', () => {
+describe('notifications (in-page only — SW handles OS notifications)', () => {
   beforeEach(() => {
-    MockNotification.instances = [];
-    MockNotification.permission = 'granted';
     playMock.mockClear();
     document.title = 'Console';
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
@@ -43,26 +24,26 @@ describe('notifications', () => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   });
 
-  it('fires desktop notification when document is hidden and permission granted', () => {
-    notifyVisitorMessage({ name: 'Pat', body: 'hello there' });
-    expect(MockNotification.instances).toHaveLength(1);
-    expect(MockNotification.instances[0].title).toBe('New message from Pat');
-    expect(MockNotification.instances[0].options?.body).toBe('hello there');
+  it('does NOT call new Notification (SW push handles OS notifications)', () => {
+    const ctor = vi.fn();
+    (globalThis as any).Notification = ctor;
+    notifyVisitorMessage({ name: 'Pat', body: 'hi' });
+    expect(ctor).not.toHaveBeenCalled();
+    delete (globalThis as any).Notification;
   });
 
-  it('uses generic title when name is null', () => {
-    notifyVisitorMessage({ name: null, body: 'I have a question' });
-    expect(MockNotification.instances[0].title).toBe('New visitor message');
+  it('plays a ping sound when document is hidden', () => {
+    notifyVisitorMessage({ name: 'A', body: '1' });
+    expect(playMock).toHaveBeenCalledTimes(1);
   });
 
-  it('does not fire when document is visible', () => {
+  it('does not play sound when document is visible', () => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
-    notifyVisitorMessage({ name: 'X', body: 'y' });
-    expect(MockNotification.instances).toHaveLength(0);
-    expect(document.title).toBe('Console');
+    notifyVisitorMessage({ name: 'A', body: '1' });
+    expect(playMock).not.toHaveBeenCalled();
   });
 
-  it('flashes title with unread count', () => {
+  it('flashes title with unread count when hidden', () => {
     notifyVisitorMessage({ name: 'A', body: '1' });
     notifyVisitorMessage({ name: 'A', body: '2' });
     expect(document.title).toMatch(/^\(2\) /);
@@ -75,23 +56,12 @@ describe('notifications', () => {
     expect(document.title).toBe('Console');
   });
 
-  it('plays a ping sound on each notification', () => {
-    notifyVisitorMessage({ name: 'A', body: '1' });
-    expect(playMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not throw when Notification permission is denied', () => {
-    MockNotification.permission = 'denied';
-    expect(() => notifyVisitorMessage({ name: 'A', body: '1' })).not.toThrow();
-    expect(MockNotification.instances).toHaveLength(0);
-  });
-
-  it('requestNotificationPermission short-circuits when already granted', async () => {
-    MockNotification.permission = 'granted';
-    const reqSpy = MockNotification.requestPermission;
-    reqSpy.mockClear();
+  it('requestNotificationPermission still works for SW push subscription', async () => {
+    const reqSpy = vi.fn(async () => 'granted' as NotificationPermission);
+    (globalThis as any).Notification = { permission: 'default', requestPermission: reqSpy };
     const result = await requestNotificationPermission();
     expect(result).toBe('granted');
-    expect(reqSpy).not.toHaveBeenCalled();
+    expect(reqSpy).toHaveBeenCalled();
+    delete (globalThis as any).Notification;
   });
 });
