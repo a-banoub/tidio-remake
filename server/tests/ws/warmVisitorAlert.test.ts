@@ -107,3 +107,56 @@ describe('warm-visitor alert: lead_signal hook', () => {
     ws.close();
   });
 });
+
+describe('warm-visitor alert: cancel hooks', () => {
+  let cancelSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    cancelSpy = vi.spyOn(warmTimers, 'cancel');
+  });
+  afterEach(() => cancelSpy.mockRestore());
+
+  async function helloWithGclid(ws: WebSocket, visitorId: string, sessionId: string) {
+    ws.send(JSON.stringify({
+      type: 'hello', visitorId, sessionId,
+      page: { url: 'https://simple1031x.com/', title: 'Home' },
+      utms: { gclid: 'x' }, referrer: null, userAgent: 'Mozilla/5.0',
+    }));
+    await new Promise((r) => ws.on('message', (m) => r(JSON.parse(m.toString()))));
+  }
+
+  it('cancels the timer on chat_open', async () => {
+    const visitorId = newVisitorId();
+    const sessionId = newSessionId();
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/visitor`);
+    await new Promise<void>((r) => ws.on('open', () => r()));
+    await helloWithGclid(ws, visitorId, sessionId);
+    expect(startSpy).toHaveBeenCalledTimes(1);
+    ws.send(JSON.stringify({ type: 'chat_open' }));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(cancelSpy).toHaveBeenCalledWith(visitorId);
+    ws.close();
+  });
+
+  it('cancels the timer on the visitor first chat_message', async () => {
+    const visitorId = newVisitorId();
+    const sessionId = newSessionId();
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/visitor`);
+    await new Promise<void>((r) => ws.on('open', () => r()));
+    await helloWithGclid(ws, visitorId, sessionId);
+    ws.send(JSON.stringify({ type: 'chat_message', body: 'Hi there' }));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(cancelSpy).toHaveBeenCalledWith(visitorId);
+    ws.close();
+  });
+
+  it('cancels the timer on ws close', async () => {
+    const visitorId = newVisitorId();
+    const sessionId = newSessionId();
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/visitor`);
+    await new Promise<void>((r) => ws.on('open', () => r()));
+    await helloWithGclid(ws, visitorId, sessionId);
+    ws.close();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(cancelSpy).toHaveBeenCalledWith(visitorId);
+  });
+});

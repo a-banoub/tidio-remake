@@ -210,11 +210,13 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         if (existing) {
           deps.ls.patch(state.visitorId, { conversationId: existing.id });
         }
+        deps.warmTimers.cancel(state.visitorId);
         break;
       }
 
       case 'chat_message': {
         if (!state.visitorId || !state.sessionId) break;
+        deps.warmTimers.cancel(state.visitorId);
         const now = Date.now();
         const op = operators.findById(1);
         const initialStatus: 'live' | 'queued' = (op?.status === 'online') ? 'live' : 'queued';
@@ -309,6 +311,8 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
 
   ws.on('close', () => {
     if (state.visitorId) {
+      deps.warmTimers.cancel(state.visitorId);
+      if (state.sessionId) deps.warmTimers.clearForSession(state.sessionId);
       deps.ls.remove(state.visitorId, ws);
       logger.debug({ visitorId: state.visitorId }, 'visitor ws closed');
       // Broadcast to operator console: visitor disconnected (immediately, no grace period for v1)
