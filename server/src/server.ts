@@ -40,6 +40,11 @@ export function createServer(input: ServerDepsInput): Server {
     res.json({ status: 'ok', uptime: process.uptime() });
   });
 
+  // Bare-domain visits land on the operator console. Mobile browsers in
+  // particular often visit chat.simple1031x.com without the /console/ path
+  // and would otherwise see a 404.
+  app.get('/', (_req, res) => res.redirect(302, '/console/'));
+
   app.use('/api/operator', setupRouter(deps));
   app.use('/api/operator', loginRouter(deps));
   app.use('/api/operator', pushSubscribeRouter(deps));

@@ -29,13 +29,14 @@ export function LeftPane() {
           key={c.id}
           visitor={liveVisitors.value[c.visitor_id]}
           selected={inConv?.id === c.id}
+          lastMessageAt={c.last_message_at}
           onClick={() => selectConv(c.id)}
         />
       ))}
 
       <h2 className="text-xs font-semibold uppercase text-slate-500 px-4 pt-4 pb-2 border-t border-slate-100">Waiting</h2>
       {queued.map(c => liveVisitors.value[c.visitor_id] && (
-        <VisitorRow key={c.id} visitor={liveVisitors.value[c.visitor_id]} selected={inConv?.id === c.id} onClick={() => selectConv(c.id)} />
+        <VisitorRow key={c.id} visitor={liveVisitors.value[c.visitor_id]} selected={inConv?.id === c.id} lastMessageAt={c.last_message_at} onClick={() => selectConv(c.id)} />
       ))}
       {queued.length === 0 && <p className="px-4 text-xs text-slate-400">None</p>}
 

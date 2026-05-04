@@ -138,6 +138,7 @@ export function handleOperatorConnection(ws: WebSocket, _req: IncomingMessage, d
 
       case 'update_visitor': {
         new VisitorsRepo(deps.db).updateContact(msg.visitorId, { name: msg.name, email: msg.email, phone: msg.phone });
+        logger.info({ operatorId, visitorId: msg.visitorId, name: msg.name, email: msg.email, phone: msg.phone }, 'visitor contact updated');
         deps.oc.broadcastTo(operatorId, { type: 'visitor_updated', visitorId: msg.visitorId, patch: { name: msg.name, email: msg.email, phone: msg.phone } });
         break;
       }

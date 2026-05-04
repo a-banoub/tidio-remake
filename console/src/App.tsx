@@ -10,6 +10,7 @@ import { PingModal } from './components/PingModal.js';
 import { Toast } from './components/Toast.js';
 import { startVisitorDetailAutoFetch } from './state/visitorDetail.js';
 import { registerPush } from './push/subscribe.js';
+import { requestNotificationPermission, clearUnread } from './notifications.js';
 
 type Route = 'loading' | 'setup' | 'login' | 'main';
 
@@ -46,11 +47,12 @@ export function App() {
       startVisitorDetailAutoFetch();
       const tok = tokenStore.get();
       if (tok) {
-        // Register Web Push in the background; don't block the UI on permission/network.
-        registerPush(tok).catch(() => {
-          /* swallow — registerPush already returns {ok:false} on failure */
-        });
+        registerPush(tok).catch(() => {});
       }
+      requestNotificationPermission().catch(() => {});
+      const onVisible = () => { if (document.visibilityState === 'visible') clearUnread(); };
+      document.addEventListener('visibilitychange', onVisible);
+      return () => document.removeEventListener('visibilitychange', onVisible);
     }
   }, [route]);
 

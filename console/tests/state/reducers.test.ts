@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { liveVisitors, conversations, queuedConversations, liveConversations, pendingAlerts, operatorStatus } from '../../src/state/store.js';
 import { applyWsMessage } from '../../src/state/reducers.js';
+import * as notifications from '../../src/notifications.js';
 
 beforeEach(() => {
   liveVisitors.value = {};
@@ -55,6 +56,29 @@ describe('reducers', () => {
     applyWsMessage({ type: 'new_message', conversationId: 'c_a', message: { id: 1, conversation_id: 'c_a', sender: 'visitor', body: 'hi', sent_at: 100, seen_at: null, quick_reply_id: null } });
     expect(conversations.value['c_a'].messages).toHaveLength(1);
     expect(conversations.value['c_a'].messages[0].body).toBe('hi');
+  });
+
+  it('new_message from visitor calls notifyVisitorMessage with visitor name', () => {
+    const spy = vi.spyOn(notifications, 'notifyVisitorMessage').mockImplementation(() => {});
+    liveVisitors.value = {
+      v_a: { visitorId: 'v_a', activeSessionId: 's_1', lastSeenAt: 1, currentPage: { url: '/x', title: null, enteredAt: 1 }, scrollPct: 0, leadScore: 0, isHot: false, isTyping: false, socketCount: 1, name: 'Pat' },
+    };
+    conversations.value = {
+      c_a: { id: 'c_a', visitor_id: 'v_a', opened_session_id: null, status: 'live', opened_at: 1, closed_at: null, last_message_at: 1, initiated_by: 'visitor', timeout_capture: null, messages: [] },
+    };
+    applyWsMessage({ type: 'new_message', conversationId: 'c_a', message: { id: 1, conversation_id: 'c_a', sender: 'visitor', body: 'hello', sent_at: 100, seen_at: null, quick_reply_id: null } });
+    expect(spy).toHaveBeenCalledWith({ name: 'Pat', body: 'hello' });
+    spy.mockRestore();
+  });
+
+  it('new_message from operator does NOT trigger notification', () => {
+    const spy = vi.spyOn(notifications, 'notifyVisitorMessage').mockImplementation(() => {});
+    conversations.value = {
+      c_a: { id: 'c_a', visitor_id: 'v_a', opened_session_id: null, status: 'live', opened_at: 1, closed_at: null, last_message_at: 1, initiated_by: 'visitor', timeout_capture: null, messages: [] },
+    };
+    applyWsMessage({ type: 'new_message', conversationId: 'c_a', message: { id: 2, conversation_id: 'c_a', sender: 'operator', body: 'reply', sent_at: 200, seen_at: null, quick_reply_id: null } });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it('conversation_queued adds new queued conversation', () => {
