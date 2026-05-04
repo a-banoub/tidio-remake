@@ -8,6 +8,7 @@ import { bootWs } from './wsBoot.js';
 import { PingModal } from './components/PingModal.js';
 import { Toast } from './components/Toast.js';
 import { startVisitorDetailAutoFetch } from './state/visitorDetail.js';
+import { registerPush } from './push/subscribe.js';
 
 function getRoute(): 'login' | 'main' {
   return tokenStore.get() ? 'main' : 'login';
@@ -19,6 +20,13 @@ export function App() {
     if (route === 'main') {
       bootWs();
       startVisitorDetailAutoFetch();
+      const tok = tokenStore.get();
+      if (tok) {
+        // Register Web Push in the background; don't block the UI on permission/network.
+        registerPush(tok).catch(() => {
+          /* swallow — registerPush already returns {ok:false} on failure */
+        });
+      }
     }
   }, [route]);
 
