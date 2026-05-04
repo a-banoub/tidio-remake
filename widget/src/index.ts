@@ -4,6 +4,7 @@ import { ChatWS } from './ws.js';
 import { ConvStore } from './storage.js';
 import { injectStyles } from './styles.js';
 import { WidgetUI } from './ui.js';
+import { setupAnalyticsBridge } from './analytics.js';
 
 export const WIDGET_VERSION = '0.1.0';
 
@@ -77,6 +78,8 @@ function init() {
     },
     onClose: () => {},
   });
+
+  setupAnalyticsBridge((m) => ws.send(m));
 
   setInterval(() => {
     if (document.visibilityState === 'visible') {
