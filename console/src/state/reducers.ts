@@ -103,6 +103,13 @@ export function applyWsMessage(msg: any): void {
       pendingAlerts.value = [...pendingAlerts.value, { visitorId: msg.visitorId, reason: msg.reason, timestamp: Date.now() }];
       break;
     }
+    case 'warm_visitor_alert': {
+      pendingAlerts.value = [
+        ...pendingAlerts.value,
+        { visitorId: msg.visitorId, reason: 'warm_visitor', timestamp: Date.now() },
+      ];
+      break;
+    }
     case 'status_changed': {
       operatorStatus.value = msg.status;
       break;
