@@ -1,4 +1,4 @@
-import { liveVisitors, conversations, operatorStatus, pendingAlerts } from './store.js';
+import { liveVisitors, conversations, operatorStatus, pendingAlerts, unreadByConversation, selectedConversationId } from './store.js';
 import type { LiveVisitor, Conversation, Message } from './types.js';
 import { notifyVisitorMessage } from '../notifications.js';
 
@@ -72,6 +72,14 @@ export function applyWsMessage(msg: any): void {
       if (m.sender === 'visitor') {
         const visitor = conv ? liveVisitors.value[conv.visitor_id] : undefined;
         notifyVisitorMessage({ name: visitor?.name ?? null, body: m.body });
+        // Bump unread count when the message is for a conversation the
+        // operator isn't currently looking at — drives the left-rail badge.
+        if (selectedConversationId.value !== cid) {
+          unreadByConversation.value = {
+            ...unreadByConversation.value,
+            [cid]: (unreadByConversation.value[cid] ?? 0) + 1,
+          };
+        }
       }
       break;
     }

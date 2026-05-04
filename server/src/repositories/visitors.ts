@@ -23,7 +23,12 @@ export class VisitorsRepo {
   updateContact(id: string, patch: { name?: string; email?: string; phone?: string }): void {
     const sets: string[] = []; const vals: unknown[] = [];
     for (const [k, v] of Object.entries(patch)) {
-      if (v !== undefined) { sets.push(`${k} = ?`); vals.push(v); }
+      if (v !== undefined) {
+        // Empty string clears the field — store as NULL so downstream "is the
+        // contact known?" checks behave consistently.
+        sets.push(`${k} = ?`);
+        vals.push(v === '' ? null : v);
+      }
     }
     if (!sets.length) return;
     vals.push(id);

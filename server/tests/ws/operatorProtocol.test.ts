@@ -19,4 +19,20 @@ describe('operatorProtocol', () => {
   it('rejects malformed JSON', () => {
     expect(parseOperatorMessage('not json')).toBeNull();
   });
+
+  it('parses update_visitor with empty email (allows clearing the field)', () => {
+    const m = parseOperatorMessage('{"type":"update_visitor","visitorId":"v_abcdef123456","name":"Pat","email":"","phone":""}');
+    expect(m?.type).toBe('update_visitor');
+    expect((m as any).email).toBe('');
+  });
+
+  it('parses update_visitor with valid email', () => {
+    const m = parseOperatorMessage('{"type":"update_visitor","visitorId":"v_abcdef123456","email":"a@b.com"}');
+    expect(m?.type).toBe('update_visitor');
+    expect((m as any).email).toBe('a@b.com');
+  });
+
+  it('rejects update_visitor with malformed email', () => {
+    expect(parseOperatorMessage('{"type":"update_visitor","visitorId":"v_abcdef123456","email":"not-an-email"}')).toBeNull();
+  });
 });
