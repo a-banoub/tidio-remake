@@ -15,10 +15,15 @@ export function migrate(db: DB): void {
     const id = parseInt(file.slice(0, 3), 10);
     if (applied.has(id)) continue;
     const sql = readFileSync(join(MIGRATIONS_DIR, file), 'utf8');
-    db.transaction(() => {
-      db.exec(sql);
-      db.prepare('INSERT INTO migrations (id, applied_at) VALUES (?, ?)').run(id, Date.now());
-    })();
+    try {
+      db.transaction(() => {
+        db.exec(sql);
+        db.prepare('INSERT INTO migrations (id, applied_at) VALUES (?, ?)').run(id, Date.now());
+      })();
+    } catch (err) {
+      logger.error({ id, file, err }, 'migration failed');
+      throw err;
+    }
     logger.info({ id, file }, 'migration applied');
   }
 }
