@@ -2,6 +2,7 @@ import { selectedConversation, liveVisitors } from '../state/store.js';
 import { EditableContact } from '../components/EditableContact.js';
 import { LeadScoreBox } from '../components/LeadScoreBox.js';
 import { JourneyTimeline } from '../components/JourneyTimeline.js';
+import { SourceGeoDevicePanel } from '../components/SourceGeoDevicePanel.js';
 
 export function RightPane() {
   const conv = selectedConversation.value;
@@ -17,6 +18,7 @@ export function RightPane() {
       <EditableContact visitor={visitor} />
       <LeadScoreBox visitor={visitor} />
       <JourneyTimeline visitor={visitor} />
+      <SourceGeoDevicePanel visitor={visitor} />
     </aside>
   );
 }
