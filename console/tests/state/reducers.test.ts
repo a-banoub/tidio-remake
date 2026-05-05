@@ -127,6 +127,40 @@ describe('reducers', () => {
     expect(pendingAlerts.value[0].visitorId).toBe('v_a');
   });
 
+  it('warm_visitor_alert appends an entry to pendingAlerts with reason "warm_visitor"', () => {
+    pendingAlerts.value = [];
+    applyWsMessage({
+      type: 'warm_visitor_alert',
+      visitorId: 'v_warm12345678',
+      sessionId: 's_xyz123456789',
+      leadScore: 4,
+      page: 'https://simple1031x.com/pricing',
+      dwellMs: 90_000,
+      reason: 'warm_dwell_90s',
+    });
+    expect(pendingAlerts.value).toHaveLength(1);
+    expect(pendingAlerts.value[0]).toMatchObject({
+      visitorId: 'v_warm12345678',
+      reason: 'warm_visitor',
+    });
+  });
+
+  it('warm_visitor_alert does not clobber existing alerts', () => {
+    pendingAlerts.value = [{ visitorId: 'v_old', reason: 'lead_score_8', timestamp: 1 }];
+    applyWsMessage({
+      type: 'warm_visitor_alert',
+      visitorId: 'v_new12345678',
+      sessionId: 's_z',
+      leadScore: 3,
+      page: '/x',
+      dwellMs: 90_000,
+      reason: 'warm_dwell_90s',
+    });
+    expect(pendingAlerts.value).toHaveLength(2);
+    expect(pendingAlerts.value[0].visitorId).toBe('v_old');
+    expect(pendingAlerts.value[1].visitorId).toBe('v_new12345678');
+  });
+
   it('status_changed updates operatorStatus signal', () => {
     applyWsMessage({ type: 'status_changed', status: 'away' });
     expect(operatorStatus.value).toBe('away');

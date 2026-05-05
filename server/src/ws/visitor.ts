@@ -10,6 +10,7 @@ import { MessagesRepo } from '../repositories/messages.js';
 import { PageViewsRepo } from '../repositories/pageViews.js';
 import { LeadSignalsRepo } from '../repositories/leadSignals.js';
 import { scoreFor } from '../leadScore/compute.js';
+import { WARM_VISITOR_DWELL_MS } from '../timers/warmVisitor.js';
 import { newConversationId } from '../ids.js';
 import { logger } from '../logger.js';
 import { lookup } from '../geo/lookup.js';
@@ -19,6 +20,16 @@ import { shouldPushOperator } from '../push/shouldPush.js';
 
 type ConnState = { visitorId?: string; sessionId?: string };
 
+function dwellMsForEnv(): number {
+  const override = process.env.TEST_WARM_VISITOR_DWELL_MS;
+  if (override && /^\d+$/.test(override)) return Number(override);
+  return WARM_VISITOR_DWELL_MS;
+}
+
+function pathOf(url: string): string {
+  try { return new URL(url).pathname; } catch { return url; }
+}
+
 export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, deps: ServerDeps): void {
   const state: ConnState = {};
   const visitors = new VisitorsRepo(deps.db);
@@ -26,6 +37,30 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
   const operators = new OperatorsRepo(deps.db);
   const conversations = new ConversationsRepo(deps.db);
   const _messages = new MessagesRepo(deps.db);
+
+  function fireWarmVisitorAlert(visitorId: string, sessionId: string, currentPageUrl: string): void {
+    const session = sessions.findById(sessionId);
+    const leadScore = session?.current_lead_score ?? 0;
+    const dwellMs = dwellMsForEnv();
+    const page = currentPageUrl;
+    const alert = {
+      type: 'warm_visitor_alert' as const,
+      visitorId,
+      sessionId,
+      leadScore,
+      page,
+      dwellMs,
+      reason: 'warm_dwell_90s' as const,
+    };
+    deps.oc.broadcastTo(1, alert);
+    pushDispatcher
+      .pushToOperator(deps, 1, {
+        title: 'Warm visitor on site',
+        body: `${pathOf(page)} · score ${leadScore}, here ${Math.round(dwellMs / 1000)}s`,
+        url: `/console/?ping=${visitorId}`,
+      })
+      .catch((err) => logger.warn({ err }, 'warm-visitor push failed'));
+  }
 
   ws.on('message', (raw) => {
     const msg = parseVisitorMessage(raw.toString());
@@ -105,6 +140,17 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
           }
         }
 
+        // Warm-visitor alert: start the dwell timer if this session is already
+        // showing buying intent (score > 0) and there's no open conversation.
+        const currentScore = sessions.findById(msg.sessionId)?.current_lead_score ?? 0;
+        const cutoffWarm = now - 30 * 24 * 60 * 60 * 1000;
+        const existingConvForWarm = conversations.findOpenForVisitor(msg.visitorId, cutoffWarm);
+        if (currentScore > 0 && !existingConvForWarm) {
+          deps.warmTimers.start(msg.visitorId, msg.sessionId, dwellMsForEnv(), () => {
+            fireWarmVisitorAlert(msg.visitorId, msg.sessionId, msg.page.url);
+          });
+        }
+
         const op = operators.findById(1);
         const operatorOnline = op?.status === 'online';
 
@@ -169,6 +215,19 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
             visitorId: state.visitorId,
             patch: { leadScore: cur },
           });
+          // Warm-visitor alert: start dwell timer when score newly becomes positive.
+          if (prevScore === 0 && cur > 0) {
+            const cutoffWarm = Date.now() - 30 * 24 * 60 * 60 * 1000;
+            const existingConvForWarm = conversations.findOpenForVisitor(state.visitorId, cutoffWarm);
+            if (!existingConvForWarm) {
+              const currentUrlForWarm = deps.ls.get(state.visitorId)?.currentPage.url ?? '';
+              const sId = state.sessionId;
+              const vId = state.visitorId;
+              deps.warmTimers.start(vId, sId, dwellMsForEnv(), () => {
+                fireWarmVisitorAlert(vId, sId, currentUrlForWarm);
+              });
+            }
+          }
           // High-priority alert when crossing the 8 threshold
           if (prevScore < 8 && cur >= 8) {
             deps.oc.broadcastTo(1, {
@@ -188,11 +247,13 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         if (existing) {
           deps.ls.patch(state.visitorId, { conversationId: existing.id });
         }
+        deps.warmTimers.cancel(state.visitorId);
         break;
       }
 
       case 'chat_message': {
         if (!state.visitorId || !state.sessionId) break;
+        deps.warmTimers.cancel(state.visitorId);
         const now = Date.now();
         const op = operators.findById(1);
         const initialStatus: 'live' | 'queued' = (op?.status === 'online') ? 'live' : 'queued';
@@ -287,6 +348,8 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
 
   ws.on('close', () => {
     if (state.visitorId) {
+      deps.warmTimers.cancel(state.visitorId);
+      if (state.sessionId) deps.warmTimers.clearForSession(state.sessionId);
       deps.ls.remove(state.visitorId, ws);
       logger.debug({ visitorId: state.visitorId }, 'visitor ws closed');
       // Broadcast to operator console: visitor disconnected (immediately, no grace period for v1)
