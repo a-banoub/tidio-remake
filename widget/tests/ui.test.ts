@@ -46,3 +46,40 @@ describe('WidgetUI replay', () => {
     expect(document.querySelectorAll('.s1031-msg').length).toBe(2);
   });
 });
+
+describe('WidgetUI mobile auto-peek', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  function mockMatchMedia(matches: boolean) {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches,
+        media: query,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+  }
+
+  it('mount() creates the auto-peek on desktop (matchMedia: false)', () => {
+    mockMatchMedia(false);
+    const ui = new WidgetUI({ onOpen: () => {}, onClose: () => {}, onSend: () => {}, onSubmitCapture: () => {} });
+    ui.mount(true);
+    expect(document.querySelector('.s1031-peek')).not.toBeNull();
+  });
+
+  it('mount() does NOT create the auto-peek on mobile (matchMedia: true)', () => {
+    mockMatchMedia(true);
+    const ui = new WidgetUI({ onOpen: () => {}, onClose: () => {}, onSend: () => {}, onSubmitCapture: () => {} });
+    ui.mount(true);
+    expect(document.querySelector('.s1031-peek')).toBeNull();
+    expect(document.querySelector('.s1031-bubble')).not.toBeNull();
+  });
+});

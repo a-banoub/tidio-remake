@@ -26,12 +26,14 @@ export class WidgetUI {
     this.bubble.onclick = () => this.open();
     document.body.appendChild(this.bubble);
 
-    this.peek = document.createElement('div');
-    this.peek.className = 's1031-peek';
-    this.peek.textContent = '👋 Hi! Have a question about your 1031?';
-    this.peek.onclick = () => this.open();
-    document.body.appendChild(this.peek);
-    setTimeout(() => this.peek?.remove(), 10000);
+    if (!this.isMobile()) {
+      this.peek = document.createElement('div');
+      this.peek.className = 's1031-peek';
+      this.peek.textContent = '👋 Hi! Have a question about your 1031?';
+      this.peek.onclick = () => this.open();
+      document.body.appendChild(this.peek);
+      setTimeout(() => this.peek?.remove(), 10000);
+    }
   }
 
   open() {
@@ -201,6 +203,10 @@ export class WidgetUI {
       </div>
     `;
     this.panel.querySelector('.s1031-close')!.addEventListener('click', () => this.close());
+  }
+
+  private isMobile(): boolean {
+    return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 640px)').matches;
   }
 }
 
