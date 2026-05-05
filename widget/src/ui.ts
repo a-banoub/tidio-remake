@@ -202,6 +202,8 @@ export class WidgetUI {
       sys.textContent = "We usually reply within a few minutes. What's on your mind?";
       this.body.appendChild(sys);
     }
+
+    if (mobile) this.attachDismissGestures(this.panel);
   }
 
   private renderCaptureForm() {
@@ -246,6 +248,51 @@ export class WidgetUI {
       </div>
     `;
     this.panel.querySelector('.s1031-close')!.addEventListener('click', () => this.close());
+  }
+
+  private attachDismissGestures(panel: HTMLDivElement) {
+    const handle = panel.querySelector('.s1031-handle') as HTMLElement | null;
+    const header = panel.querySelector('.s1031-header') as HTMLElement | null;
+    const grabbable = handle ?? header;
+    if (!grabbable) return;
+
+    let startY = 0;
+    let currentY = 0;
+    let dragging = false;
+    const DISMISS_THRESHOLD = 80;
+
+    grabbable.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      dragging = true;
+      startY = e.touches[0].clientY;
+      currentY = startY;
+      panel.style.transition = 'none';
+    }, { passive: true });
+
+    grabbable.addEventListener('touchmove', (e) => {
+      if (!dragging) return;
+      currentY = e.touches[0].clientY;
+      const dy = Math.max(0, currentY - startY);
+      panel.style.transform = `translateY(${dy}px)`;
+    }, { passive: true });
+
+    grabbable.addEventListener('touchend', () => {
+      if (!dragging) return;
+      dragging = false;
+      panel.style.transition = '';
+      if (currentY - startY >= DISMISS_THRESHOLD) {
+        this.close();
+      } else {
+        panel.style.transform = '';
+      }
+    });
+
+    grabbable.addEventListener('touchcancel', () => {
+      if (!dragging) return;
+      dragging = false;
+      panel.style.transition = '';
+      panel.style.transform = '';
+    });
   }
 
   private isMobile(): boolean {
