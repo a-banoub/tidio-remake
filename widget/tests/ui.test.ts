@@ -205,3 +205,48 @@ describe('WidgetUI mobile bottom-sheet rendering', () => {
     expect(panel!.classList.contains('s1031-panel-mobile')).toBe(false);
   });
 });
+
+describe('WidgetUI mobile dismiss', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (q: string) => ({
+        matches: true, media: q,
+        addListener: () => {}, removeListener: () => {},
+        addEventListener: () => {}, removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+  });
+
+  it('clicking the backdrop closes the panel', () => {
+    let closed = false;
+    const ui = new WidgetUI({ onOpen: () => {}, onClose: () => { closed = true; }, onSend: () => {}, onSubmitCapture: () => {} });
+    ui.mount(true);
+    ui.open();
+    const backdrop = document.querySelector('.s1031-backdrop') as HTMLElement;
+    backdrop.click();
+    expect(closed).toBe(true);
+    expect(document.querySelector('.s1031-panel')).toBeNull();
+  });
+
+  it('close() removes the backdrop from DOM', () => {
+    const ui = new WidgetUI({ onOpen: () => {}, onClose: () => {}, onSend: () => {}, onSubmitCapture: () => {} });
+    ui.mount(true);
+    ui.open();
+    expect(document.querySelector('.s1031-backdrop')).not.toBeNull();
+    ui.close();
+    expect(document.querySelector('.s1031-backdrop')).toBeNull();
+  });
+
+  it('close() then open() recreates the backdrop fresh', () => {
+    const ui = new WidgetUI({ onOpen: () => {}, onClose: () => {}, onSend: () => {}, onSubmitCapture: () => {} });
+    ui.mount(true);
+    ui.open();
+    ui.close();
+    ui.open();
+    expect(document.querySelectorAll('.s1031-backdrop').length).toBe(1);
+  });
+});

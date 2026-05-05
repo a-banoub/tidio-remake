@@ -54,6 +54,8 @@ export class WidgetUI {
 
   close() {
     this.panel?.remove();
+    this.backdrop?.remove();
+    this.backdrop = undefined;
     this.phase = 'closed';
     this.mount(this.operatorOnline);
     this.handlers.onClose();
