@@ -82,13 +82,20 @@ function init() {
         case 'operator_typing':
           ui.showOperatorTyping(!!m.isTyping);
           break;
-        case 'operator_pinged_you':
-          ui.open();
-          ui.showMessage({ sender: 'system', body: '🔔 Alex jumped in to help' });
-          ui.showMessage({ sender: 'operator', body: m.body });
+        case 'operator_pinged_you': {
+          const isMobile = typeof window.matchMedia === 'function'
+            && window.matchMedia('(max-width: 640px)').matches;
+          if (isMobile) {
+            ui.notifyPing(m.body);
+          } else {
+            ui.open();
+            ui.showMessage({ sender: 'system', body: '🔔 Alex jumped in to help' });
+            ui.showMessage({ sender: 'operator', body: m.body });
+          }
           appendToStore('system', '🔔 Alex jumped in to help');
           appendToStore('operator', m.body);
           break;
+        }
         case 'phase_transition':
           ui.enterCapturePhase(m.phase === 'email_on_file' ? m.knownEmail : null);
           break;

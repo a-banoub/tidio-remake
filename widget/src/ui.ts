@@ -12,9 +12,11 @@ export class WidgetUI {
   private peek?: HTMLDivElement;
   private panel?: HTMLDivElement;
   private body?: HTMLDivElement;
+  private backdrop?: HTMLDivElement;
   private phase: Phase = 'closed';
   private operatorOnline = true;
   private knownEmail: string | null = null;
+  private pendingPingBody?: string;
 
   constructor(private handlers: UIHandlers) {}
 
@@ -26,12 +28,14 @@ export class WidgetUI {
     this.bubble.onclick = () => this.open();
     document.body.appendChild(this.bubble);
 
-    this.peek = document.createElement('div');
-    this.peek.className = 's1031-peek';
-    this.peek.textContent = '👋 Hi! Have a question about your 1031?';
-    this.peek.onclick = () => this.open();
-    document.body.appendChild(this.peek);
-    setTimeout(() => this.peek?.remove(), 10000);
+    if (!this.isMobile()) {
+      this.peek = document.createElement('div');
+      this.peek.className = 's1031-peek';
+      this.peek.textContent = '👋 Hi! Have a question about your 1031?';
+      this.peek.onclick = () => this.open();
+      document.body.appendChild(this.peek);
+      setTimeout(() => this.peek?.remove(), 10000);
+    }
   }
 
   open() {
@@ -41,10 +45,17 @@ export class WidgetUI {
     this.phase = 'chat';
     this.handlers.onOpen();
     this.renderPanel();
+    if (this.pendingPingBody) {
+      this.showMessage({ sender: 'system', body: '🔔 Alex jumped in to help' });
+      this.showMessage({ sender: 'operator', body: this.pendingPingBody });
+      this.pendingPingBody = undefined;
+    }
   }
 
   close() {
     this.panel?.remove();
+    this.backdrop?.remove();
+    this.backdrop = undefined;
     this.phase = 'closed';
     this.mount(this.operatorOnline);
     this.handlers.onClose();
@@ -52,6 +63,31 @@ export class WidgetUI {
 
   setOperatorOnline(online: boolean) { this.operatorOnline = online; }
   setKnownEmail(email: string | null) { this.knownEmail = email; }
+
+  notifyPing(body: string, operatorName: string = 'Alex'): void {
+    this.pendingPingBody = body;
+
+    // Add badge to the existing bubble (idempotent)
+    if (this.bubble && !this.bubble.querySelector('.s1031-bubble-badge')) {
+      const badge = document.createElement('div');
+      badge.className = 's1031-bubble-badge';
+      this.bubble.appendChild(badge);
+    }
+
+    // Replace any existing peek with a tap-to-read ping peek
+    this.peek?.remove();
+    const truncated = body.length > 80 ? body.slice(0, 80) + '…' : body;
+    this.peek = document.createElement('div');
+    this.peek.className = 's1031-peek s1031-peek-ping';
+    this.peek.innerHTML = `
+      <div class="s1031-peek-name">${escapeHtml(operatorName)} from Simple 1031</div>
+      <div class="s1031-peek-body">${escapeHtml(truncated)}</div>
+      <div class="s1031-peek-cta">Tap to read →</div>
+    `;
+    this.peek.onclick = () => this.open();
+    document.body.appendChild(this.peek);
+    setTimeout(() => this.peek?.remove(), 30000);
+  }
 
   showMessage(msg: { sender: 'visitor' | 'operator' | 'system'; body: string }) {
     if (!this.body) return;
@@ -119,9 +155,18 @@ export class WidgetUI {
   }
 
   private renderPanel() {
+    const mobile = this.isMobile();
+    if (mobile) {
+      this.backdrop = document.createElement('div');
+      this.backdrop.className = 's1031-backdrop';
+      this.backdrop.onclick = () => this.close();
+      document.body.appendChild(this.backdrop);
+    }
+
     this.panel = document.createElement('div');
-    this.panel.className = 's1031-panel';
-    this.panel.innerHTML = `
+    this.panel.className = 's1031-panel' + (mobile ? ' s1031-panel-mobile' : '');
+    const handleHTML = mobile ? '<div class="s1031-handle"><div></div></div>' : '';
+    this.panel.innerHTML = handleHTML + `
       <div class="s1031-header">
         <div class="s1031-avatar">A</div>
         <div><h4>Alex from Simple 1031</h4><p>${this.operatorOnline ? 'Active now' : 'Replies in a few minutes'}</p></div>
@@ -157,6 +202,8 @@ export class WidgetUI {
       sys.textContent = "We usually reply within a few minutes. What's on your mind?";
       this.body.appendChild(sys);
     }
+
+    if (mobile) this.attachDismissGestures(this.panel);
   }
 
   private renderCaptureForm() {
@@ -201,6 +248,55 @@ export class WidgetUI {
       </div>
     `;
     this.panel.querySelector('.s1031-close')!.addEventListener('click', () => this.close());
+  }
+
+  private attachDismissGestures(panel: HTMLDivElement) {
+    const handle = panel.querySelector('.s1031-handle') as HTMLElement | null;
+    const header = panel.querySelector('.s1031-header') as HTMLElement | null;
+    const grabbable = handle ?? header;
+    if (!grabbable) return;
+
+    let startY = 0;
+    let currentY = 0;
+    let dragging = false;
+    const DISMISS_THRESHOLD = 80;
+
+    grabbable.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      dragging = true;
+      startY = e.touches[0].clientY;
+      currentY = startY;
+      panel.style.transition = 'none';
+    }, { passive: true });
+
+    grabbable.addEventListener('touchmove', (e) => {
+      if (!dragging) return;
+      currentY = e.touches[0].clientY;
+      const dy = Math.max(0, currentY - startY);
+      panel.style.transform = `translateY(${dy}px)`;
+    }, { passive: true });
+
+    grabbable.addEventListener('touchend', () => {
+      if (!dragging) return;
+      dragging = false;
+      panel.style.transition = '';
+      if (currentY - startY >= DISMISS_THRESHOLD) {
+        this.close();
+      } else {
+        panel.style.transform = '';
+      }
+    });
+
+    grabbable.addEventListener('touchcancel', () => {
+      if (!dragging) return;
+      dragging = false;
+      panel.style.transition = '';
+      panel.style.transform = '';
+    });
+  }
+
+  private isMobile(): boolean {
+    return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 640px)').matches;
   }
 }
 
