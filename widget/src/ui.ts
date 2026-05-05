@@ -15,6 +15,7 @@ export class WidgetUI {
   private phase: Phase = 'closed';
   private operatorOnline = true;
   private knownEmail: string | null = null;
+  private pendingPingBody?: string;
 
   constructor(private handlers: UIHandlers) {}
 
@@ -43,6 +44,11 @@ export class WidgetUI {
     this.phase = 'chat';
     this.handlers.onOpen();
     this.renderPanel();
+    if (this.pendingPingBody) {
+      this.showMessage({ sender: 'system', body: '🔔 Alex jumped in to help' });
+      this.showMessage({ sender: 'operator', body: this.pendingPingBody });
+      this.pendingPingBody = undefined;
+    }
   }
 
   close() {
@@ -54,6 +60,31 @@ export class WidgetUI {
 
   setOperatorOnline(online: boolean) { this.operatorOnline = online; }
   setKnownEmail(email: string | null) { this.knownEmail = email; }
+
+  notifyPing(body: string, operatorName: string = 'Alex'): void {
+    this.pendingPingBody = body;
+
+    // Add badge to the existing bubble (idempotent)
+    if (this.bubble && !this.bubble.querySelector('.s1031-bubble-badge')) {
+      const badge = document.createElement('div');
+      badge.className = 's1031-bubble-badge';
+      this.bubble.appendChild(badge);
+    }
+
+    // Replace any existing peek with a tap-to-read ping peek
+    this.peek?.remove();
+    const truncated = body.length > 80 ? body.slice(0, 80) + '…' : body;
+    this.peek = document.createElement('div');
+    this.peek.className = 's1031-peek s1031-peek-ping';
+    this.peek.innerHTML = `
+      <div class="s1031-peek-name">${escapeHtml(operatorName)} from Simple 1031</div>
+      <div class="s1031-peek-body">${escapeHtml(truncated)}</div>
+      <div class="s1031-peek-cta">Tap to read →</div>
+    `;
+    this.peek.onclick = () => this.open();
+    document.body.appendChild(this.peek);
+    setTimeout(() => this.peek?.remove(), 30000);
+  }
 
   showMessage(msg: { sender: 'visitor' | 'operator' | 'system'; body: string }) {
     if (!this.body) return;

@@ -83,3 +83,69 @@ describe('WidgetUI mobile auto-peek', () => {
     expect(document.querySelector('.s1031-bubble')).not.toBeNull();
   });
 });
+
+describe('WidgetUI notifyPing (mobile operator-ping landing)', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: true,
+        media: query,
+        addListener: () => {}, removeListener: () => {},
+        addEventListener: () => {}, removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+  });
+
+  it('notifyPing() adds a badge to the bubble', () => {
+    const ui = new WidgetUI({ onOpen: () => {}, onClose: () => {}, onSend: () => {}, onSubmitCapture: () => {} });
+    ui.mount(true);
+    ui.notifyPing('Hey, want to chat?');
+    expect(document.querySelector('.s1031-bubble-badge')).not.toBeNull();
+    expect(document.querySelector('.s1031-bubble')).not.toBeNull();
+  });
+
+  it('notifyPing() creates a ping peek with the message preview', () => {
+    const ui = new WidgetUI({ onOpen: () => {}, onClose: () => {}, onSend: () => {}, onSubmitCapture: () => {} });
+    ui.mount(true);
+    ui.notifyPing('Hey, want to chat about your 1031?');
+    const peek = document.querySelector('.s1031-peek-ping');
+    expect(peek).not.toBeNull();
+    expect(peek!.textContent).toContain('Hey, want to chat about your 1031?');
+  });
+
+  it('notifyPing() does NOT call onOpen', () => {
+    let opened = false;
+    const ui = new WidgetUI({ onOpen: () => { opened = true; }, onClose: () => {}, onSend: () => {}, onSubmitCapture: () => {} });
+    ui.mount(true);
+    ui.notifyPing('Hello');
+    expect(opened).toBe(false);
+  });
+
+  it('notifyPing() then open() renders system + operator messages', () => {
+    const ui = new WidgetUI({ onOpen: () => {}, onClose: () => {}, onSend: () => {}, onSubmitCapture: () => {} });
+    ui.mount(true);
+    ui.notifyPing('Want help with your exchange?');
+    ui.open();
+    const operatorMsgs = document.querySelectorAll('.s1031-msg.operator');
+    const allText = Array.from(document.querySelectorAll('.s1031-system, .s1031-msg')).map(e => e.textContent).join('|');
+    expect(allText).toContain('Alex jumped in to help');
+    expect(allText).toContain('Want help with your exchange?');
+    expect(operatorMsgs.length).toBe(1);
+    expect(operatorMsgs[0].textContent).toBe('Want help with your exchange?');
+  });
+
+  it('notifyPing() truncates long messages with ellipsis in the peek', () => {
+    const ui = new WidgetUI({ onOpen: () => {}, onClose: () => {}, onSend: () => {}, onSubmitCapture: () => {} });
+    ui.mount(true);
+    const longBody = 'a'.repeat(200);
+    ui.notifyPing(longBody);
+    const peekBody = document.querySelector('.s1031-peek-body');
+    expect(peekBody).not.toBeNull();
+    expect(peekBody!.textContent!.length).toBeLessThanOrEqual(82); // 80 chars + '…'
+    expect(peekBody!.textContent!.endsWith('…')).toBe(true);
+  });
+});
