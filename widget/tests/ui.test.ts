@@ -149,3 +149,59 @@ describe('WidgetUI notifyPing (mobile operator-ping landing)', () => {
     expect(peekBody!.textContent!.endsWith('…')).toBe(true);
   });
 });
+
+describe('WidgetUI mobile bottom-sheet rendering', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  function setMobile(matches: boolean) {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (q: string) => ({
+        matches, media: q,
+        addListener: () => {}, removeListener: () => {},
+        addEventListener: () => {}, removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+  }
+
+  it('open() on mobile creates a backdrop element', () => {
+    setMobile(true);
+    const ui = new WidgetUI({ onOpen: () => {}, onClose: () => {}, onSend: () => {}, onSubmitCapture: () => {} });
+    ui.mount(true);
+    ui.open();
+    expect(document.querySelector('.s1031-backdrop')).not.toBeNull();
+  });
+
+  it('open() on mobile adds a drag handle to the panel', () => {
+    setMobile(true);
+    const ui = new WidgetUI({ onOpen: () => {}, onClose: () => {}, onSend: () => {}, onSubmitCapture: () => {} });
+    ui.mount(true);
+    ui.open();
+    expect(document.querySelector('.s1031-panel .s1031-handle')).not.toBeNull();
+  });
+
+  it('open() on mobile adds the s1031-panel-mobile class', () => {
+    setMobile(true);
+    const ui = new WidgetUI({ onOpen: () => {}, onClose: () => {}, onSend: () => {}, onSubmitCapture: () => {} });
+    ui.mount(true);
+    ui.open();
+    const panel = document.querySelector('.s1031-panel');
+    expect(panel).not.toBeNull();
+    expect(panel!.classList.contains('s1031-panel-mobile')).toBe(true);
+  });
+
+  it('open() on desktop does NOT create backdrop, handle, or mobile class', () => {
+    setMobile(false);
+    const ui = new WidgetUI({ onOpen: () => {}, onClose: () => {}, onSend: () => {}, onSubmitCapture: () => {} });
+    ui.mount(true);
+    ui.open();
+    expect(document.querySelector('.s1031-backdrop')).toBeNull();
+    expect(document.querySelector('.s1031-handle')).toBeNull();
+    const panel = document.querySelector('.s1031-panel');
+    expect(panel!.classList.contains('s1031-panel-mobile')).toBe(false);
+  });
+});

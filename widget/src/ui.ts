@@ -12,6 +12,7 @@ export class WidgetUI {
   private peek?: HTMLDivElement;
   private panel?: HTMLDivElement;
   private body?: HTMLDivElement;
+  private backdrop?: HTMLDivElement;
   private phase: Phase = 'closed';
   private operatorOnline = true;
   private knownEmail: string | null = null;
@@ -152,9 +153,18 @@ export class WidgetUI {
   }
 
   private renderPanel() {
+    const mobile = this.isMobile();
+    if (mobile) {
+      this.backdrop = document.createElement('div');
+      this.backdrop.className = 's1031-backdrop';
+      this.backdrop.onclick = () => this.close();
+      document.body.appendChild(this.backdrop);
+    }
+
     this.panel = document.createElement('div');
-    this.panel.className = 's1031-panel';
-    this.panel.innerHTML = `
+    this.panel.className = 's1031-panel' + (mobile ? ' s1031-panel-mobile' : '');
+    const handleHTML = mobile ? '<div class="s1031-handle"><div></div></div>' : '';
+    this.panel.innerHTML = handleHTML + `
       <div class="s1031-header">
         <div class="s1031-avatar">A</div>
         <div><h4>Alex from Simple 1031</h4><p>${this.operatorOnline ? 'Active now' : 'Replies in a few minutes'}</p></div>
