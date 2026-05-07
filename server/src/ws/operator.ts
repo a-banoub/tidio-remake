@@ -166,8 +166,18 @@ export function handleOperatorConnection(ws: WebSocket, _req: IncomingMessage, d
         if (conv) {
           const live = deps.ls.get(conv.visitor_id);
           if (live) for (const sock of live.sockets) try { sock.send(JSON.stringify({ type: 'system', body: 'This conversation has ended. Thanks for chatting!' })); } catch {}
+          const messagesRepo = new MessagesRepo(deps.db);
+          const msgs = messagesRepo.listByConversation(conv.id, 50);
+          const last = msgs[msgs.length - 1];
+          deps.oc.broadcastTo(operatorId, {
+            type: 'conversation_closed',
+            conversation: {
+              ...conv,
+              lastMessages: msgs,
+              last_message_preview: last ? last.body.slice(0, 120) : null,
+            },
+          });
         }
-        deps.oc.broadcastTo(operatorId, { type: 'conversation_closed', conversationId: msg.conversationId });
         break;
       }
 

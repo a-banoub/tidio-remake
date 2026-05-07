@@ -16,7 +16,9 @@ import { requestNotificationPermission, clearUnread } from './notifications.js';
 type Route = 'loading' | 'setup' | 'login' | 'main';
 
 export function App() {
+  // All hooks at the top — Rules of Hooks
   const [route, setRoute] = useState<Route>('loading');
+  const [hash, setHash] = useState(typeof window !== 'undefined' ? window.location.hash : '');
 
   useEffect(() => {
     let cancelled = false;
@@ -43,6 +45,13 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', handler);
+    return () => window.removeEventListener('hashchange', handler);
+  }, []);
+
+  useEffect(() => {
     if (route === 'main') {
       bootWs();
       startVisitorDetailAutoFetch();
@@ -61,14 +70,7 @@ export function App() {
   if (route === 'setup') return <SetupPage />;
   if (route === 'login') return <LoginPage />;
 
-  // Hash-based routing for authenticated pages
-  const [hash, setHash] = useState(typeof window !== 'undefined' ? window.location.hash : '');
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handler = () => setHash(window.location.hash);
-    window.addEventListener('hashchange', handler);
-    return () => window.removeEventListener('hashchange', handler);
-  }, []);
+  // Hash-based routing for authenticated pages — safe, auth gate has passed
 
   if (hash === '#/settings') return <SettingsPage />;
 

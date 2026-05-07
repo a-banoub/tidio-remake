@@ -120,4 +120,26 @@ describe('operator actions', () => {
     v.ws.close();
     op.ws.close();
   });
+
+  it('end_chat broadcasts full conversation object to operator (new shape)', async () => {
+    const op = await connectOperator();
+    const v = await connectVisitor(newVisitorId(), newSessionId());
+    const cid = await startConv(v);
+    // Clear messages collected so far (subscribe snapshot etc.)
+    op.messages.length = 0;
+    op.ws.send(JSON.stringify({ type: 'end_chat', conversationId: cid }));
+    await new Promise(r => setTimeout(r, 50));
+    const closed = op.messages.find(m => m.type === 'conversation_closed');
+    expect(closed).toBeDefined();
+    // New shape: must include a full conversation object, not just conversationId
+    expect(closed.conversation).toBeDefined();
+    expect(closed.conversation.id).toBe(cid);
+    expect(closed.conversation.status).toBe('closed');
+    expect(Array.isArray(closed.conversation.lastMessages)).toBe(true);
+    expect('last_message_preview' in closed.conversation).toBe(true);
+    // Legacy conversationId field should NOT be present at the top level
+    expect(closed.conversationId).toBeUndefined();
+    v.ws.close();
+    op.ws.close();
+  });
 });
