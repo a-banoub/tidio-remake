@@ -45,3 +45,17 @@ export type Conversation = {
 export type QuickReply = { id: number; label: string; body: string; sort_order: number };
 
 export type LeftVisitor = LiveVisitor & { leftAt: number; conversationId?: string };
+
+export type ClosedConversation = {
+  id: string;
+  visitor_id: string;
+  opened_session_id: string | null;
+  status: 'closed' | 'abandoned' | 'closed_for_followup';
+  opened_at: number;
+  closed_at: number;
+  last_message_at: number;
+  initiated_by: 'visitor' | 'operator';
+  timeout_capture: string | null;
+  lastMessages: Message[];
+  last_message_preview: string | null;
+};

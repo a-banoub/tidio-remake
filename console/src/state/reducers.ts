@@ -1,5 +1,5 @@
-import { liveVisitors, leftVisitors, conversations, operatorStatus, pendingAlerts, unreadByConversation, selectedConversationId } from './store.js';
-import type { LiveVisitor, Conversation, Message } from './types.js';
+import { liveVisitors, leftVisitors, conversations, closedConversations, operatorStatus, pendingAlerts, unreadByConversation, selectedConversationId } from './store.js';
+import type { LiveVisitor, Conversation, ClosedConversation, Message } from './types.js';
 import { notifyVisitorMessage } from '../notifications.js';
 
 export function applyWsMessage(msg: any): void {
@@ -13,6 +13,11 @@ export function applyWsMessage(msg: any): void {
         conv[c.id] = { ...c, messages: c.lastMessages ?? [] };
       }
       conversations.value = conv;
+      if (Array.isArray(msg.recentlyClosedConversations)) {
+        const next: Record<string, ClosedConversation> = {};
+        for (const c of msg.recentlyClosedConversations) next[c.id] = c;
+        closedConversations.value = next;
+      }
       break;
     }
     case 'visitor_appeared': {
@@ -99,9 +104,19 @@ export function applyWsMessage(msg: any): void {
       break;
     }
     case 'conversation_closed': {
-      const cur = conversations.value[msg.conversationId];
-      if (!cur) return;
-      conversations.value = { ...conversations.value, [msg.conversationId]: { ...cur, status: 'closed', closed_at: Date.now() } };
+      if (msg.conversation) {
+        // New shape: server sends the full closed conversation object.
+        // Add to closedConversations and remove from live conversations.
+        closedConversations.value = { ...closedConversations.value, [msg.conversation.id]: msg.conversation as ClosedConversation };
+        const next = { ...conversations.value };
+        delete next[msg.conversation.id];
+        conversations.value = next;
+      } else if (msg.conversationId) {
+        // Legacy shape: server sends just the id; mark the existing live conversation closed.
+        const cur = conversations.value[msg.conversationId];
+        if (!cur) return;
+        conversations.value = { ...conversations.value, [msg.conversationId]: { ...cur, status: 'closed', closed_at: Date.now() } };
+      }
       break;
     }
     case 'high_priority_alert': {

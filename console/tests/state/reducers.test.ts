@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { liveVisitors, conversations, queuedConversations, liveConversations, pendingAlerts, operatorStatus, unreadByConversation, selectedConversationId } from '../../src/state/store.js';
+import { liveVisitors, conversations, queuedConversations, liveConversations, pendingAlerts, operatorStatus, unreadByConversation, selectedConversationId, closedConversations } from '../../src/state/store.js';
 import { applyWsMessage } from '../../src/state/reducers.js';
 import * as notifications from '../../src/notifications.js';
 
@@ -164,5 +164,39 @@ describe('reducers', () => {
   it('status_changed updates operatorStatus signal', () => {
     applyWsMessage({ type: 'status_changed', status: 'away' });
     expect(operatorStatus.value).toBe('away');
+  });
+});
+
+describe('state_snapshot recentlyClosedConversations hydration', () => {
+  beforeEach(() => { closedConversations.value = {}; });
+
+  it('populates closedConversations signal from snapshot', () => {
+    applyWsMessage({
+      type: 'state_snapshot',
+      liveVisitors: [], openConversations: [], queuedConversations: [],
+      recentlyClosedConversations: [
+        { id: 'c1', visitor_id: 'v1', opened_session_id: 's1', status: 'closed',
+          opened_at: 1000, closed_at: 2000, last_message_at: 2000,
+          initiated_by: 'visitor', timeout_capture: null,
+          lastMessages: [{ id: 1, conversation_id: 'c1', sender: 'visitor', body: 'hi', sent_at: 1500, seen_at: null, quick_reply_id: null }],
+          last_message_preview: 'hi' },
+      ],
+    });
+    expect(Object.keys(closedConversations.value)).toEqual(['c1']);
+    expect(closedConversations.value['c1'].last_message_preview).toBe('hi');
+  });
+
+  it('appends on conversation_closed event', () => {
+    closedConversations.value = {};
+    applyWsMessage({
+      type: 'conversation_closed',
+      conversation: {
+        id: 'c2', visitor_id: 'v2', opened_session_id: 's2', status: 'closed',
+        opened_at: 3000, closed_at: 4000, last_message_at: 4000,
+        initiated_by: 'operator', timeout_capture: null,
+        lastMessages: [], last_message_preview: null,
+      },
+    });
+    expect(closedConversations.value['c2']).toBeDefined();
   });
 });
