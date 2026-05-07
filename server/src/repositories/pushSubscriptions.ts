@@ -4,6 +4,9 @@ export type PushSubscriptionRow = {
   id: number; operator_id: number; endpoint: string;
   p256dh: string; auth: string; device_label: string | null;
   created_at: number; last_used_at: number | null;
+  last_push_ok_at: number | null;
+  last_push_fail_reason: string | null;
+  last_push_fail_at: number | null;
 };
 
 export class PushSubscriptionsRepo {
@@ -27,5 +30,13 @@ export class PushSubscriptionsRepo {
 
   bumpLastUsed(id: number, ts: number): void {
     this.db.prepare('UPDATE push_subscriptions SET last_used_at = ? WHERE id = ?').run(ts, id);
+  }
+
+  recordOk(id: number, ts: number): void {
+    this.db.prepare('UPDATE push_subscriptions SET last_push_ok_at = ?, last_used_at = ? WHERE id = ?').run(ts, ts, id);
+  }
+
+  recordFail(id: number, reason: string, ts: number): void {
+    this.db.prepare('UPDATE push_subscriptions SET last_push_fail_reason = ?, last_push_fail_at = ? WHERE id = ?').run(reason, ts, id);
   }
 }

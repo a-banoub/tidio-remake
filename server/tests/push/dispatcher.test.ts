@@ -157,4 +157,91 @@ describe('pushToOperator', () => {
     const subs = repo.listForOperator(opId);
     expect(subs.map(s => s.endpoint)).toEqual(['https://ok.example/e']);
   });
+
+  it('sets TTL=60 when urgency is high', async () => {
+    const db = makeTestDb('push-disp-ttl-high-' + Math.random().toString(36).slice(2));
+    const opId = new OperatorsRepo(db).create({ email: 'a@b', password_hash: 'h', display_name: 'A', created_at: 1000 });
+    const repo = new PushSubscriptionsRepo(db);
+    repo.upsert({ operator_id: opId, endpoint: 'https://ttl60.example/e', p256dh: 'p', auth: 'a', created_at: 1 });
+
+    const spy = vi.spyOn(webpush, 'sendNotification').mockResolvedValue({ statusCode: 201, body: '', headers: {} } as any);
+
+    await pushToOperator(makeDeps(db), opId, { title: 't', body: 'b', urgency: 'high' });
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    const [, , opts] = spy.mock.calls[0];
+    expect((opts as any).TTL).toBe(60);
+    expect((opts as any).urgency).toBe('high');
+  });
+
+  it('sets TTL=300 when urgency is not high (default/normal)', async () => {
+    const db = makeTestDb('push-disp-ttl-normal-' + Math.random().toString(36).slice(2));
+    const opId = new OperatorsRepo(db).create({ email: 'a@b', password_hash: 'h', display_name: 'A', created_at: 1000 });
+    const repo = new PushSubscriptionsRepo(db);
+    repo.upsert({ operator_id: opId, endpoint: 'https://ttl300.example/e', p256dh: 'p', auth: 'a', created_at: 1 });
+
+    const spy = vi.spyOn(webpush, 'sendNotification').mockResolvedValue({ statusCode: 201, body: '', headers: {} } as any);
+
+    await pushToOperator(makeDeps(db), opId, { title: 't', body: 'b' });
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    const [, , opts] = spy.mock.calls[0];
+    expect((opts as any).TTL).toBe(300);
+    expect((opts as any).urgency).toBeUndefined();
+  });
+
+  it('records success: sets last_push_ok_at on 201', async () => {
+    const db = makeTestDb('push-disp-recok-' + Math.random().toString(36).slice(2));
+    const opId = new OperatorsRepo(db).create({ email: 'a@b', password_hash: 'h', display_name: 'A', created_at: 1000 });
+    const repo = new PushSubscriptionsRepo(db);
+    repo.upsert({ operator_id: opId, endpoint: 'https://recok.example/e', p256dh: 'p', auth: 'a', created_at: 1 });
+
+    vi.spyOn(webpush, 'sendNotification').mockResolvedValue({ statusCode: 201, body: '', headers: {} } as any);
+
+    const before = Date.now();
+    await pushToOperator(makeDeps(db), opId, { title: 't', body: 'b' });
+
+    const subs = repo.listForOperator(opId);
+    expect(subs).toHaveLength(1);
+    expect(subs[0].last_push_ok_at).not.toBeNull();
+    expect(subs[0].last_push_ok_at!).toBeGreaterThanOrEqual(before);
+    expect(subs[0].last_push_fail_reason).toBeNull();
+  });
+
+  it('records failure (does NOT delete) on non-410 errors and sets last_push_fail_reason', async () => {
+    const db = makeTestDb('push-disp-recfail-' + Math.random().toString(36).slice(2));
+    const opId = new OperatorsRepo(db).create({ email: 'a@b', password_hash: 'h', display_name: 'A', created_at: 1000 });
+    const repo = new PushSubscriptionsRepo(db);
+    repo.upsert({ operator_id: opId, endpoint: 'https://recfail.example/e', p256dh: 'p', auth: 'a', created_at: 1 });
+
+    const err: any = new Error('Internal Server Error');
+    err.statusCode = 500;
+    vi.spyOn(webpush, 'sendNotification').mockRejectedValue(err);
+
+    const before = Date.now();
+    await pushToOperator(makeDeps(db), opId, { title: 't', body: 'b' });
+
+    const subs = repo.listForOperator(opId);
+    expect(subs).toHaveLength(1); // NOT deleted
+    expect(subs[0].last_push_fail_reason).toBe('Internal Server Error');
+    expect(subs[0].last_push_fail_at).not.toBeNull();
+    expect(subs[0].last_push_fail_at!).toBeGreaterThanOrEqual(before);
+    expect(subs[0].last_push_ok_at).toBeNull();
+  });
+
+  it('deletes subscription on 410 Gone (does not record failure)', async () => {
+    const db = makeTestDb('push-disp-del410b-' + Math.random().toString(36).slice(2));
+    const opId = new OperatorsRepo(db).create({ email: 'a@b', password_hash: 'h', display_name: 'A', created_at: 1000 });
+    const repo = new PushSubscriptionsRepo(db);
+    repo.upsert({ operator_id: opId, endpoint: 'https://del410b.example/e', p256dh: 'p', auth: 'a', created_at: 1 });
+
+    const err: any = new Error('Gone');
+    err.statusCode = 410;
+    vi.spyOn(webpush, 'sendNotification').mockRejectedValue(err);
+
+    await pushToOperator(makeDeps(db), opId, { title: 't', body: 'b' });
+
+    // Subscription must be deleted, not merely failed
+    expect(repo.listForOperator(opId)).toHaveLength(0);
+  });
 });

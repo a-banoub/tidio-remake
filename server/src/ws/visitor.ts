@@ -171,6 +171,7 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
                     title: 'Google Ads lead on site',
                     body: `${pathOf(msg.page.url)} · engaged for 30s`,
                     url: `/console/?ping=${msg.visitorId}`,
+                    urgency: 'high',
                   })
                   .catch((err) => logger.warn({ err }, 'google-lead dwell push failed'));
                 sessions.markDwellNotified(msg.sessionId, Date.now());
@@ -209,7 +210,7 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
               body: `${label} · ${pathOf(msg.page.url)}`,
               url: `/console/?ping=${msg.visitorId}`,
               tag: `visitor-${msg.visitorId}`,
-              urgency: 'normal',
+              urgency: 'high',
             }).catch((err) => logger.warn({ err }, 'arrival push failed'));
           }
         }
@@ -338,6 +339,7 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
               title: 'New message from visitor',
               body: msg.body.slice(0, 100),
               url: `/console/#/chat/${conv.id}`,
+              urgency: 'high',
             })
             .catch((err) => logger.warn({ err }, 'push trigger failed'));
         }
