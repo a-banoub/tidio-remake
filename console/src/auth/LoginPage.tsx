@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
 import { tokenStore } from './tokenStore.js';
+import { unlockAudio } from '../notifications.js';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
@@ -21,6 +22,7 @@ export function LoginPage() {
       if (!res.ok) { setError('Invalid email or password.'); return; }
       const { token } = await res.json();
       tokenStore.set(token);
+      unlockAudio();
       window.location.reload();
     } catch {
       setError('Network error. Please try again.');

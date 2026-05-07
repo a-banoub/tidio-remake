@@ -1,6 +1,6 @@
 import { liveVisitors, leftVisitors, conversations, closedConversations, operatorStatus, pendingAlerts, unreadByConversation, selectedConversationId } from './store.js';
 import type { LiveVisitor, Conversation, ClosedConversation, Message } from './types.js';
-import { notifyVisitorMessage } from '../notifications.js';
+import { notifyVisitorMessage, notifyVisitorArrived, setOperatorStatusForNotifications } from '../notifications.js';
 
 export function applyWsMessage(msg: any): void {
   switch (msg?.type) {
@@ -42,6 +42,10 @@ export function applyWsMessage(msg: any): void {
           phone: v.phone ?? undefined,
         },
       };
+      notifyVisitorArrived({
+        name: v.name ?? null,
+        page: s?.landing_url ?? '',
+      });
       break;
     }
     case 'visitor_updated': {
@@ -132,6 +136,7 @@ export function applyWsMessage(msg: any): void {
     }
     case 'status_changed': {
       operatorStatus.value = msg.status;
+      setOperatorStatusForNotifications(msg.status);
       break;
     }
     case 'conversation_opened': {

@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
 import { tokenStore } from './tokenStore.js';
+import { unlockAudio } from '../notifications.js';
 
 export function SetupPage() {
   const [email, setEmail] = useState('');
@@ -40,6 +41,7 @@ export function SetupPage() {
       const data = await res.json();
       if (data?.token) {
         tokenStore.set(data.token);
+        unlockAudio();
         window.location.reload();
       } else {
         setError('Setup succeeded but no token was returned.');
