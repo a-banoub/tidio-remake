@@ -53,11 +53,17 @@ export function handleOperatorConnection(ws: WebSocket, _req: IncomingMessage, d
           ...c,
           lastMessages: messagesRepo.listByConversation(c.id, 50),
         }));
+        const sinceTs = Date.now() - 24 * 60 * 60 * 1000;
+        const recentlyClosed = conversations.listRecentlyClosed(sinceTs, 50).map(c => ({
+          ...c,
+          lastMessages: messagesRepo.listByConversation(c.id, 50),
+        }));
         ws.send(JSON.stringify({
           type: 'state_snapshot',
           liveVisitors,
           openConversations: open.filter(c => c.status === 'live'),
           queuedConversations: open.filter(c => c.status === 'queued'),
+          recentlyClosedConversations: recentlyClosed,
         }));
         break;
       }

@@ -43,3 +43,5 @@ export type Conversation = {
 };
 
 export type QuickReply = { id: number; label: string; body: string; sort_order: number };
+
+export type LeftVisitor = LiveVisitor & { leftAt: number; conversationId?: string };

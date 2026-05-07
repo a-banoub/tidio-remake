@@ -41,6 +41,7 @@ describe('operator subscribe', () => {
     expect(snapshot.queuedConversations[0].id).toBe('c_aaaaaaaaaaaaaaaa');
     expect(snapshot.openConversations).toHaveLength(0);
     expect(snapshot.liveVisitors).toEqual([]);
+    expect(Array.isArray(snapshot.recentlyClosedConversations)).toBe(true);
     ws.close();
   });
 

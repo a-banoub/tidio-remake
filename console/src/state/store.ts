@@ -2,8 +2,10 @@ import { signal, computed } from '@preact/signals';
 import type { LiveVisitor, Conversation, OperatorStatus, QuickReply } from './types.js';
 
 export const liveVisitors = signal<Record<string, LiveVisitor>>({});
+export const leftVisitors = signal<Record<string, LiveVisitor & { leftAt: number }>>({});
 export const conversations = signal<Record<string, Conversation>>({});
 export const selectedConversationId = signal<string | null>(null);
+export const selectedVisitorId = signal<string | null>(null);
 export const operatorStatus = signal<OperatorStatus>('online');
 export const quickReplies = signal<QuickReply[]>([]);
 

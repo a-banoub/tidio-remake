@@ -18,12 +18,18 @@ import UAParser from 'ua-parser-js';
 import * as pushDispatcher from '../push/dispatcher.js';
 import { shouldPushOperator } from '../push/shouldPush.js';
 
-type ConnState = { visitorId?: string; sessionId?: string };
+type ConnState = { visitorId?: string; sessionId?: string; dwellTimer?: NodeJS.Timeout };
 
 function dwellMsForEnv(): number {
   const override = process.env.TEST_WARM_VISITOR_DWELL_MS;
   if (override && /^\d+$/.test(override)) return Number(override);
   return WARM_VISITOR_DWELL_MS;
+}
+
+function googleLeadDwellMsForEnv(): number {
+  const override = process.env.TEST_GOOGLE_LEAD_DWELL_MS;
+  if (override && /^\d+$/.test(override)) return Number(override);
+  return 30_000;
 }
 
 function pathOf(url: string): string {
@@ -149,6 +155,27 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
           deps.warmTimers.start(msg.visitorId, msg.sessionId, dwellMsForEnv(), () => {
             fireWarmVisitorAlert(msg.visitorId, msg.sessionId, msg.page.url);
           });
+        }
+
+        // Google lead 30-second dwell push
+        const hasGclid = msg.utms.gclid;
+        if (hasGclid && !existingSession) {
+          state.dwellTimer = setTimeout(() => {
+            const sessionNow = sessions.findById(msg.sessionId);
+            if (sessionNow && !sessionNow.dwell_notified_at) {
+              const opNow = operators.findById(1);
+              if (shouldPushOperator(opNow ?? undefined, false)) {
+                pushDispatcher
+                  .pushToOperator(deps, 1, {
+                    title: 'Google Ads lead on site',
+                    body: `${pathOf(msg.page.url)} · engaged for 30s`,
+                    url: `/console/?ping=${msg.visitorId}`,
+                  })
+                  .catch((err) => logger.warn({ err }, 'google-lead dwell push failed'));
+                sessions.markDwellNotified(msg.sessionId, Date.now());
+              }
+            }
+          }, googleLeadDwellMsForEnv());
         }
 
         const op = operators.findById(1);
@@ -347,6 +374,10 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
   });
 
   ws.on('close', () => {
+    if (state.dwellTimer) {
+      clearTimeout(state.dwellTimer);
+      state.dwellTimer = undefined;
+    }
     if (state.visitorId) {
       deps.warmTimers.cancel(state.visitorId);
       if (state.sessionId) deps.warmTimers.clearForSession(state.sessionId);

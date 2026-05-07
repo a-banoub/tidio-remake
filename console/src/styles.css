@@ -1,3 +1,93 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Simple 1031 Design System — Core Tokens */
+:root {
+  /* Brand colors */
+  --s1-navy:        #1B2B4B;
+  --s1-navy-700:    #243760;
+  --s1-navy-900:    #0F1A30;
+
+  --s1-emerald:     #2E7D52;
+  --s1-emerald-600: #266b46;
+  --s1-emerald-700: #1f5a3a;
+  --s1-emerald-50:  #eaf5ee;
+
+  --s1-gold:        #C9A961;
+  --s1-gold-600:    #b3954f;
+  --s1-gold-50:     #f7f1e2;
+
+  /* Neutrals */
+  --s1-white:       #FFFFFF;
+  --s1-gray:        #F4F3F0;
+  --s1-slate-50:    #f8fafc;
+  --s1-slate-100:   #f1f5f9;
+  --s1-slate-200:   #e2e8f0;
+  --s1-slate-300:   #cbd5e1;
+  --s1-slate-400:   #94a3b8;
+  --s1-slate-500:   #64748b;
+  --s1-slate-600:   #475569;
+  --s1-slate-700:   #334155;
+  --s1-slate-800:   #1e293b;
+  --s1-slate-900:   #0f172a;
+
+  /* Status */
+  --s1-success:     #2E7D52;
+  --s1-success-50:  #eaf5ee;
+  --s1-success-700: #1f5a3a;
+
+  --s1-warning:     #d97706;
+  --s1-warning-50:  #fef3c7;
+  --s1-warning-700: #92400e;
+
+  --s1-danger:      #dc2626;
+  --s1-danger-50:   #fee2e2;
+  --s1-danger-700:  #991b1b;
+
+  /* Typography */
+  --s1-font-display: "Playfair Display", "Iowan Old Style", Georgia, serif;
+  --s1-font-sans:    "DM Sans", "Helvetica Neue", Arial, sans-serif;
+  --s1-font-mono:    "SF Mono", ui-monospace, "Menlo", "Consolas", monospace;
+
+  /* Surfaces */
+  --s1-bg:          var(--s1-white);
+  --s1-bg-muted:    var(--s1-gray);
+  --s1-surface:     var(--s1-white);
+
+  --s1-text:           var(--s1-slate-800);
+  --s1-text-muted:     var(--s1-slate-500);
+  --s1-text-strong:    var(--s1-navy);
+  --s1-text-on-dark:   var(--s1-white);
+
+  --s1-border:         var(--s1-slate-200);
+  --s1-border-strong:  var(--s1-slate-300);
+  --s1-divider:        var(--s1-slate-100);
+
+  /* Radii */
+  --s1-radius-md:  8px;
+  --s1-radius-lg:  12px;
+  --s1-radius-xl:  16px;
+  --s1-radius-2xl: 24px;
+  --s1-radius-pill: 999px;
+
+  /* Shadows */
+  --s1-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --s1-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.06), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --s1-shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.10), 0 4px 8px rgba(15, 23, 42, 0.05);
+  --s1-shadow-xl: 0 24px 48px rgba(15, 23, 42, 0.14), 0 8px 16px rgba(15, 23, 42, 0.08);
+  --s1-shadow-focus: 0 0 0 3px rgba(46, 125, 82, 0.15);
+
+  /* Motion */
+  --s1-dur-base: 200ms;
+  --s1-ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Touch target */
+  --s1-touch-target: 44px;
+}
+
+body {
+  font-family: var(--s1-font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

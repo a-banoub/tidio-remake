@@ -9,6 +9,7 @@ export type Session = {
   ip: string | null; city: string | null; region: string | null; country: string | null; timezone: string | null;
   device_type: string | null; browser: string | null; os: string | null;
   current_lead_score: number;
+  dwell_notified_at: number | null;
 };
 
 export type CreateSessionInput = Omit<Session, 'ended_at' | 'current_lead_score'>;
@@ -41,5 +42,9 @@ export class SessionsRepo {
 
   end(id: string, ts: number): void {
     this.db.prepare('UPDATE sessions SET ended_at = ? WHERE id = ?').run(ts, id);
+  }
+
+  markDwellNotified(id: string, ts: number): void {
+    this.db.prepare('UPDATE sessions SET dwell_notified_at = ? WHERE id = ?').run(ts, id);
   }
 }

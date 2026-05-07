@@ -1,4 +1,4 @@
-import { liveVisitors, conversations, operatorStatus, pendingAlerts, unreadByConversation, selectedConversationId } from './store.js';
+import { liveVisitors, leftVisitors, conversations, operatorStatus, pendingAlerts, unreadByConversation, selectedConversationId } from './store.js';
 import type { LiveVisitor, Conversation, Message } from './types.js';
 import { notifyVisitorMessage } from '../notifications.js';
 
@@ -48,6 +48,11 @@ export function applyWsMessage(msg: any): void {
       break;
     }
     case 'visitor_left': {
+      const v = liveVisitors.value[msg.visitorId];
+      if (v) {
+        // Archive to leftVisitors with timestamp
+        leftVisitors.value = { ...leftVisitors.value, [msg.visitorId]: { ...v, leftAt: Date.now() } };
+      }
       const next = { ...liveVisitors.value };
       delete next[msg.visitorId];
       liveVisitors.value = next;

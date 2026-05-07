@@ -51,4 +51,12 @@ export class ConversationsRepo {
   listOpenAndQueued(): Conversation[] {
     return this.db.prepare("SELECT * FROM conversations WHERE status IN ('live','queued') ORDER BY last_message_at DESC").all() as Conversation[];
   }
+
+  listRecentlyClosed(sinceTs: number, limit: number): Conversation[] {
+    return this.db.prepare(`
+      SELECT * FROM conversations
+      WHERE status IN ('closed','abandoned','closed_for_followup') AND closed_at >= ?
+      ORDER BY closed_at DESC LIMIT ?
+    `).all(sinceTs, limit) as Conversation[];
+  }
 }
