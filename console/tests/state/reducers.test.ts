@@ -10,6 +10,7 @@ beforeEach(() => {
   operatorStatus.value = 'online';
   unreadByConversation.value = {};
   selectedConversationId.value = null;
+  closedConversations.value = {};
 });
 
 describe('reducers', () => {
