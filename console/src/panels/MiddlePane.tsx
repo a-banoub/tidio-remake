@@ -1,4 +1,4 @@
-import { selectedConversation, selectedVisitorId, liveVisitors, leftVisitors, pendingPing } from '../state/store.js';
+import { selectedConversation, selectedVisitorId, liveVisitors, leftVisitors, closedConversations, pendingPing } from '../state/store.js';
 import { visitorDetail } from '../state/visitorDetail.js';
 import { ChatThread } from '../components/ChatThread.js';
 import { Composer } from '../components/Composer.js';
@@ -26,8 +26,46 @@ export function MiddlePane() {
     );
   }
 
-  // State A: visitor selected but no conversation
+  // State D: visitor selected and has a closed conversation — render read-only history
   const visitorId = selectedVisitorId.value;
+  if (visitorId) {
+    const allClosed = Object.values(closedConversations.value);
+    const myClosed = allClosed
+      .filter(c => c.visitor_id === visitorId)
+      .sort((a, b) => b.closed_at - a.closed_at)[0];
+
+    if (myClosed) {
+      const visitor = liveVisitors.value[visitorId] ?? leftVisitors.value[visitorId];
+      const displayName = visitor ? visitorDisplayName(visitor) : `Visitor #${visitorId.slice(-6)}`;
+      const closedTs = new Date(myClosed.closed_at).toLocaleString();
+      return (
+        <main className="flex flex-col bg-white border-r border-slate-200">
+          <header className="px-4 py-3 border-b border-slate-200">
+            <h3 className="text-sm font-semibold">{displayName}</h3>
+            <p className="text-xs text-slate-500">Closed at {closedTs}</p>
+          </header>
+          <div className="flex-1 overflow-y-auto opacity-90 px-4 py-3 flex flex-col gap-2">
+            {myClosed.lastMessages.map(m => (
+              <div key={m.id} className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${m.sender === 'visitor' ? 'bg-slate-100 text-slate-800 self-start' : 'bg-brand-emerald/10 text-brand-emerald-700 self-end ml-auto'}`}>
+                {m.body}
+              </div>
+            ))}
+          </div>
+          <div className="border-t border-slate-200 p-3">
+            <button
+              onClick={() => { pendingPing.value = visitorId; }}
+              className="w-full bg-brand-emerald hover:bg-brand-emerald-600 text-white text-sm font-semibold rounded-lg flex items-center justify-center"
+              style={{ height: '44px' }}
+            >
+              Start new chat
+            </button>
+          </div>
+        </main>
+      );
+    }
+  }
+
+  // State A: visitor selected but no conversation
   if (visitorId) {
     const visitor = liveVisitors.value[visitorId] ?? leftVisitors.value[visitorId];
     if (!visitor) {
