@@ -105,6 +105,38 @@ describe('pushToOperator', () => {
     expect(JSON.parse(payload as string)).toEqual({ title: 'Hi', body: 'world', url: '/console/' });
   });
 
+  it('passes urgency in options arg to sendNotification', async () => {
+    const db = makeTestDb('push-disp-urgency-' + Math.random().toString(36).slice(2));
+    const opId = new OperatorsRepo(db).create({ email: 'a@b', password_hash: 'h', display_name: 'A', created_at: 1000 });
+    const repo = new PushSubscriptionsRepo(db);
+    repo.upsert({ operator_id: opId, endpoint: 'https://urgency.example/e', p256dh: 'p', auth: 'a', created_at: 1 });
+
+    const spy = vi.spyOn(webpush, 'sendNotification').mockResolvedValue({ statusCode: 201, body: '', headers: {} } as any);
+
+    await pushToOperator(makeDeps(db), opId, { title: 't', body: 'b', urgency: 'high' });
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    const [, , opts] = spy.mock.calls[0];
+    expect((opts as any).urgency).toBe('high');
+  });
+
+  it('includes tag in serialized payload and omits urgency from options when not set', async () => {
+    const db = makeTestDb('push-disp-tag-' + Math.random().toString(36).slice(2));
+    const opId = new OperatorsRepo(db).create({ email: 'a@b', password_hash: 'h', display_name: 'A', created_at: 1000 });
+    const repo = new PushSubscriptionsRepo(db);
+    repo.upsert({ operator_id: opId, endpoint: 'https://tag.example/e', p256dh: 'p', auth: 'a', created_at: 1 });
+
+    const spy = vi.spyOn(webpush, 'sendNotification').mockResolvedValue({ statusCode: 201, body: '', headers: {} } as any);
+
+    await pushToOperator(makeDeps(db), opId, { title: 't', body: 'b', tag: 'visitor-abc123' });
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    const [, rawPayload, opts] = spy.mock.calls[0];
+    const parsed = JSON.parse(rawPayload as string);
+    expect(parsed.tag).toBe('visitor-abc123');
+    expect((opts as any).urgency).toBeUndefined();
+  });
+
   it('iterates over multiple subscriptions independently', async () => {
     const db = makeTestDb('push-disp-multi-' + Math.random().toString(36).slice(2));
     const opId = new OperatorsRepo(db).create({ email: 'a@b', password_hash: 'h', display_name: 'A', created_at: 1000 });

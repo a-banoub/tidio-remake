@@ -15,7 +15,13 @@ function configureVapid(deps: ServerDeps): void {
   _vapidConfigured = true;
 }
 
-export type PushPayload = { title: string; body: string; url?: string };
+export type PushPayload = {
+  title: string;
+  body: string;
+  url?: string;
+  tag?: string;
+  urgency?: 'very-low' | 'low' | 'normal' | 'high';
+};
 
 export async function pushToOperator(deps: ServerDeps, operatorId: number, payload: PushPayload): Promise<void> {
   configureVapid(deps);
@@ -23,9 +29,12 @@ export async function pushToOperator(deps: ServerDeps, operatorId: number, paylo
   const subs = repo.listForOperator(operatorId);
   for (const s of subs) {
     try {
+      const opts: { urgency?: 'very-low' | 'low' | 'normal' | 'high' } = {};
+      if (payload.urgency) opts.urgency = payload.urgency;
       await webpush.sendNotification(
         { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
         JSON.stringify(payload),
+        opts,
       );
       repo.bumpLastUsed(s.id, Date.now());
     } catch (e: any) {

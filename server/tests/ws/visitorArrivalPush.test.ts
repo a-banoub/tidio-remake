@@ -42,6 +42,8 @@ describe('visitor arrival push', () => {
     const arrivalCalls = spy.mock.calls.filter(c => (c[2] as any).title === 'New visitor on site');
     expect(arrivalCalls).toHaveLength(1);
     expect((arrivalCalls[0][2] as any).body).toContain('/');
+    expect((arrivalCalls[0][2] as any).tag).toMatch(/^visitor-/);
+    expect((arrivalCalls[0][2] as any).urgency).toBe('normal');
     ws.close();
   }, 5000);
 

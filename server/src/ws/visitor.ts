@@ -208,6 +208,8 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
               title: 'New visitor on site',
               body: `${label} · ${pathOf(msg.page.url)}`,
               url: `/console/?ping=${msg.visitorId}`,
+              tag: `visitor-${msg.visitorId}`,
+              urgency: 'normal',
             }).catch((err) => logger.warn({ err }, 'arrival push failed'));
           }
         }
