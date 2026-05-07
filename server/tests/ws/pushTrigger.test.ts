@@ -6,10 +6,12 @@ import { LiveSessions } from '../../src/live/sessions.js';
 import { makeTestDb } from '../helpers/testDb.js';
 import { newVisitorId, newSessionId } from '../../src/ids.js';
 import { OperatorsRepo } from '../../src/repositories/operators.js';
+import { _resetForTests as _resetArrivalDedupe } from '../../src/push/recentArrivalDedupe.js';
 
 let server: any, port: number, db: any, ls: LiveSessions;
 
 beforeEach(async () => {
+  _resetArrivalDedupe();
   db = makeTestDb('pt-' + Math.random().toString(36).slice(2));
   ls = new LiveSessions();
   // operator status defaults to 'online' but we'll flip per test
@@ -49,8 +51,9 @@ describe('chat_message push trigger', () => {
     ws.send(JSON.stringify({ type: 'chat_message', body: 'Hello there' }));
     await new Promise((r) => setTimeout(r, 100));
 
-    expect(spy).toHaveBeenCalledTimes(1);
-    const [_deps, opId, payload] = spy.mock.calls[0];
+    const chatCalls = spy.mock.calls.filter(c => (c[2] as any).title === 'New message from visitor');
+    expect(chatCalls).toHaveLength(1);
+    const [_deps, opId, payload] = chatCalls[0];
     expect(opId).toBe(1);
     expect(payload.title).toContain('New message');
     expect(payload.body).toBe('Hello there');
@@ -82,7 +85,8 @@ describe('chat_message push trigger', () => {
     await new Promise((r) => setTimeout(r, 100));
 
     // status=online but no operator websocket -> push DOES fire (offline-equivalent for delivery)
-    expect(spy).toHaveBeenCalledTimes(1);
+    const chatCalls = spy.mock.calls.filter(c => (c[2] as any).title === 'New message from visitor');
+    expect(chatCalls).toHaveLength(1);
     ws.close();
   });
 
@@ -97,9 +101,9 @@ describe('chat_message push trigger', () => {
     ws.send(JSON.stringify({ type: 'chat_message', body: long }));
     await new Promise((r) => setTimeout(r, 100));
 
-    expect(spy).toHaveBeenCalledTimes(1);
-    const payload = spy.mock.calls[0][2];
-    expect(payload.body.length).toBe(100);
+    const chatCalls = spy.mock.calls.filter(c => (c[2] as any).title === 'New message from visitor');
+    expect(chatCalls).toHaveLength(1);
+    expect(chatCalls[0][2].body.length).toBe(100);
     ws.close();
   });
 

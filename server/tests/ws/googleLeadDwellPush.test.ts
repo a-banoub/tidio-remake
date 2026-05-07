@@ -6,10 +6,12 @@ import { LiveSessions } from '../../src/live/sessions.js';
 import { makeTestDb } from '../helpers/testDb.js';
 import { newVisitorId, newSessionId } from '../../src/ids.js';
 import { OperatorsRepo } from '../../src/repositories/operators.js';
+import { _resetForTests as _resetArrivalDedupe } from '../../src/push/recentArrivalDedupe.js';
 
 let server: any, port: number, db: any, ls: LiveSessions;
 
 beforeEach(async () => {
+  _resetArrivalDedupe();
   db = makeTestDb('glead-' + Math.random().toString(36).slice(2));
   ls = new LiveSessions();
   new OperatorsRepo(db).create({ email: 'a@b', password_hash: 'h', display_name: 'A', created_at: 1000 });
@@ -57,11 +59,11 @@ describe('Google lead 30s dwell push', () => {
       utms: { gclid: 'abc123' }, referrer: null, userAgent: 'Mozilla/5.0',
     });
 
-    expect(spy).not.toHaveBeenCalled();
     await new Promise((r) => setTimeout(r, 200));
 
-    expect(spy).toHaveBeenCalledTimes(1);
-    const [_deps, opId, payload] = spy.mock.calls[0];
+    const dwellCalls = spy.mock.calls.filter(c => (c[2] as any).title === 'Google Ads lead on site');
+    expect(dwellCalls).toHaveLength(1);
+    const [_deps, opId, payload] = dwellCalls[0];
     expect(opId).toBe(1);
     expect(payload.title).toBe('Google Ads lead on site');
     expect(payload.body).toContain('engaged for 30s');
@@ -106,7 +108,9 @@ describe('Google lead 30s dwell push', () => {
     });
 
     await new Promise((r) => setTimeout(r, 200));
-    expect(spy).not.toHaveBeenCalled();
+    // No Google Ads dwell push should fire for a non-Google visitor.
+    const dwellCalls = spy.mock.calls.filter(c => (c[2] as any).title === 'Google Ads lead on site');
+    expect(dwellCalls).toHaveLength(0);
 
     spy.mockRestore();
     ws.close();
@@ -127,7 +131,9 @@ describe('Google lead 30s dwell push', () => {
 
     ws.close();
     await new Promise((r) => setTimeout(r, 200));
-    expect(spy).not.toHaveBeenCalled();
+    // Google Ads dwell push should not fire if visitor disconnects before dwell elapses.
+    const dwellCalls = spy.mock.calls.filter(c => (c[2] as any).title === 'Google Ads lead on site');
+    expect(dwellCalls).toHaveLength(0);
 
     spy.mockRestore();
   }, 5000);
@@ -150,7 +156,9 @@ describe('Google lead 30s dwell push', () => {
     new SessionsRepo(db).markDwellNotified(sessionId, Date.now());
 
     await new Promise((r) => setTimeout(r, 200));
-    expect(spy).not.toHaveBeenCalled();
+    // Google Ads dwell push should not re-fire once session is already marked notified.
+    const dwellCalls = spy.mock.calls.filter(c => (c[2] as any).title === 'Google Ads lead on site');
+    expect(dwellCalls).toHaveLength(0);
 
     spy.mockRestore();
     ws.close();

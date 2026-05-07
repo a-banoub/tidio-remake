@@ -17,6 +17,7 @@ import { lookup } from '../geo/lookup.js';
 import UAParser from 'ua-parser-js';
 import * as pushDispatcher from '../push/dispatcher.js';
 import { shouldPushOperator } from '../push/shouldPush.js';
+import { shouldPushArrival } from '../push/recentArrivalDedupe.js';
 
 type ConnState = { visitorId?: string; sessionId?: string; dwellTimer?: NodeJS.Timeout };
 
@@ -196,6 +197,20 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         const visitor = visitors.findById(msg.visitorId);
         const session = sessions.findById(msg.sessionId);
         deps.oc.broadcastTo(1, { type: 'visitor_appeared', visitor, session });
+
+        // Web Push: notify operator of every new visitor arrival (not reconnects).
+        // Deduped per visitorId for 5 minutes to prevent storms on tab refreshes.
+        if (!existingSession) {
+          const opForArrival = operators.findById(1);
+          if (shouldPushOperator(opForArrival ?? undefined, false) && shouldPushArrival(msg.visitorId)) {
+            const label = visitor?.name ?? `Visitor #${msg.visitorId.slice(-6)}`;
+            pushDispatcher.pushToOperator(deps, 1, {
+              title: 'New visitor on site',
+              body: `${label} · ${pathOf(msg.page.url)}`,
+              url: `/console/?ping=${msg.visitorId}`,
+            }).catch((err) => logger.warn({ err }, 'arrival push failed'));
+          }
+        }
         break;
       }
       case 'presence': {
