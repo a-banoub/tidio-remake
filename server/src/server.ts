@@ -20,6 +20,7 @@ import { pushSubscribeRouter } from './api/pushSubscribe.js';
 import { setupRouter } from './api/setup.js';
 import { closedConversationsRouter } from './api/closedConversations.js';
 import { startArrivalDedupeSweep } from './push/recentArrivalDedupe.js';
+import { ConversationsRepo } from './repositories/conversations.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WIDGET_DIST = resolve(__dirname, '..', '..', 'widget', 'dist');
@@ -112,6 +113,19 @@ export function createServer(input: ServerDepsInput): Server {
     const addr = server.address();
     logger.info({ addr }, 'server listening');
   });
+
+  // Boot-time reconciliation: mark any 'live' conversations that have been
+  // inactive for more than 1 hour as 'abandoned'. This repairs stale rows
+  // left over from visitors who disconnected without a clean close event.
+  // Wrapped in try/catch so test environments with mock DBs don't crash.
+  try {
+    const staleCount = new ConversationsRepo(deps.db).reconcileStaleAsAbandoned(3_600_000, Date.now());
+    if (staleCount > 0) {
+      logger.info({ staleCount }, 'reconciled stale live conversations as abandoned on boot');
+    }
+  } catch {
+    // Mock DB in tests — silently skip reconciliation
+  }
 
   startArrivalDedupeSweep(60_000);
 

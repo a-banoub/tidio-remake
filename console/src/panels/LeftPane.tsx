@@ -15,8 +15,15 @@ export function LeftPane() {
   const left = leftVisitors.value;
   const closed = closedConversations.value;
 
+  // Filter live/queued conversations to only those whose visitor is actually
+  // connected. This prevents stale 'live' DB rows (visitor already disconnected)
+  // from inflating tab counts and appearing in the list.
+  const connectedIds = new Set(Object.keys(liveVisitors.value));
+  const liveActive = live.filter(c => connectedIds.has(c.visitor_id));
+  const queuedActive = queued.filter(c => connectedIds.has(c.visitor_id));
+
   const allConvVisitorIds = new Set<string>();
-  for (const c of [...queued, ...live]) allConvVisitorIds.add(c.visitor_id);
+  for (const c of [...queuedActive, ...liveActive]) allConvVisitorIds.add(c.visitor_id);
   const liveNotChatting = Object.values(liveVisitors.value).filter(v => !allConvVisitorIds.has(v.visitorId));
 
   const closedList = Object.values(closed).map(c => ({
@@ -66,8 +73,8 @@ export function LeftPane() {
   }
 
   const tabs: { key: TabKey; label: string; count: number }[] = [
-    { key: 'live', label: 'Live', count: live.length },
-    { key: 'waiting', label: 'Waiting', count: queued.length },
+    { key: 'live', label: 'Live', count: liveActive.length },
+    { key: 'waiting', label: 'Waiting', count: queuedActive.length },
     { key: 'onsite', label: 'On Site', count: liveNotChatting.length },
     { key: 'left', label: 'Left', count: leftMerged.length },
   ];
@@ -108,8 +115,8 @@ export function LeftPane() {
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'live' && (
           <>
-            {live.length === 0 && <p className="px-4 py-3 text-xs text-slate-400">No active chats</p>}
-            {live.map(c => liveVisitors.value[c.visitor_id] && (
+            {liveActive.length === 0 && <p className="px-4 py-3 text-xs text-slate-400">No active chats</p>}
+            {liveActive.map(c => (
               <VisitorRow
                 key={c.id}
                 visitor={liveVisitors.value[c.visitor_id]}
@@ -125,8 +132,8 @@ export function LeftPane() {
 
         {activeTab === 'waiting' && (
           <>
-            {queued.length === 0 && <p className="px-4 py-3 text-xs text-slate-400">None</p>}
-            {queued.map(c => liveVisitors.value[c.visitor_id] && (
+            {queuedActive.length === 0 && <p className="px-4 py-3 text-xs text-slate-400">None</p>}
+            {queuedActive.map(c => (
               <VisitorRow
                 key={c.id}
                 visitor={liveVisitors.value[c.visitor_id]}

@@ -98,4 +98,35 @@ describe('notifications', () => {
     expect(reqSpy).toHaveBeenCalled();
     delete (globalThis as any).Notification;
   });
+
+  it('flashes title on visitor arrival when tab is hidden', () => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.title = 'Console';
+    _resetForTests();
+    setOperatorStatusForNotifications('online');
+    mockOscFactory.mockClear();
+    notifyVisitorArrived({ name: 'Eve', page: '/forward-exchange' });
+    expect(document.title).toMatch(/^\(1\) /);
+  });
+
+  it('does NOT flash title on visitor arrival when tab is visible', () => {
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    document.title = 'Console';
+    _resetForTests();
+    setOperatorStatusForNotifications('online');
+    notifyVisitorArrived({ name: 'Eve', page: '/forward-exchange' });
+    expect(document.title).toBe('Console');
+  });
+
+  it('cumulates unread across both messages and arrivals when hidden', () => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.title = 'Console';
+    _resetForTests();
+    setOperatorStatusForNotifications('online');
+    mockOscFactory.mockClear();
+    notifyVisitorMessage({ name: 'A', body: 'msg1' });
+    notifyVisitorArrived({ name: 'B', page: '/' });
+    notifyVisitorMessage({ name: 'C', body: 'msg2' });
+    expect(document.title).toMatch(/^\(3\) /);
+  });
 });

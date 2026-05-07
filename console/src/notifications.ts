@@ -78,6 +78,10 @@ export function notifyVisitorMessage(_opts: { name?: string | null; body: string
 
 export function notifyVisitorArrived(_opts: { name?: string | null; page: string }) {
   if (operatorStatusLocal === 'dnd') return;
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+    unread++;
+    flashTitle();
+  }
   playTone(523, 200, 0.25);
 }
 

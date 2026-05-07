@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/preact';
 import { LeftPane } from '../../src/panels/LeftPane.js';
-import { liveVisitors, leftVisitors, closedConversations } from '../../src/state/store.js';
+import { liveVisitors, leftVisitors, closedConversations, conversations } from '../../src/state/store.js';
 
 beforeEach(() => {
   liveVisitors.value = {};
   leftVisitors.value = {};
   closedConversations.value = {};
+  conversations.value = {};
   cleanup();
 });
 
@@ -80,5 +81,66 @@ describe('LeftPane Left tab', () => {
     const leftTab = screen.getByText(/^Left \(/i);
     fireEvent.click(leftTab);
     expect(screen.getByText('No recent visitors')).toBeTruthy();
+  });
+});
+
+describe('LeftPane tab counts — stale conversation filtering', () => {
+  function makeConv(id: string, visitorId: string, status: 'live' | 'queued') {
+    return {
+      id, visitor_id: visitorId, status,
+      opened_at: Date.now() - 5000, closed_at: null,
+      last_message_at: Date.now() - 5000,
+      opened_session_id: null, initiated_by: 'visitor' as const,
+      timeout_capture: null, messages: [],
+    };
+  }
+
+  function makeLiveVisitor(visitorId: string) {
+    return {
+      visitorId, name: null, leadScore: 0, isHot: false,
+      currentPage: { url: '/', title: null, enteredAt: 0 },
+      scrollPct: 0, isTyping: false,
+      activeSessionId: 's1', lastSeenAt: Date.now(), socketCount: 1,
+    };
+  }
+
+  it('Live tab count matches only conversations whose visitor is in liveVisitors', () => {
+    // 2 live conversations, only 1 visitor actually connected
+    conversations.value = {
+      'c_real': makeConv('c_real', 'v_real123456', 'live'),
+      'c_stale': makeConv('c_stale', 'v_stale12345', 'live'),
+    };
+    liveVisitors.value = {
+      'v_real123456': makeLiveVisitor('v_real123456') as any,
+    };
+    render(<LeftPane />);
+    // Tab should read "Live (1)" not "Live (2)"
+    expect(screen.getByText(/^Live \(1\)$/i)).toBeTruthy();
+  });
+
+  it('Waiting tab count only counts conversations with a live visitor', () => {
+    conversations.value = {
+      'c_q1': makeConv('c_q1', 'v_q1_1234567', 'queued'),
+      'c_q2': makeConv('c_q2', 'v_q2_1234567', 'queued'),
+      'c_q3': makeConv('c_q3', 'v_q3_1234567', 'queued'),
+    };
+    liveVisitors.value = {
+      'v_q1_1234567': makeLiveVisitor('v_q1_1234567') as any,
+    };
+    render(<LeftPane />);
+    expect(screen.getByText(/^Waiting \(1\)$/i)).toBeTruthy();
+  });
+
+  it('On Site count excludes visitors already in an active conversation', () => {
+    // 2 live visitors, 1 has a live conversation → On Site should be 1
+    conversations.value = {
+      'c_live': makeConv('c_live', 'v_inchat12345', 'live'),
+    };
+    liveVisitors.value = {
+      'v_inchat12345': makeLiveVisitor('v_inchat12345') as any,
+      'v_onsite12345': makeLiveVisitor('v_onsite12345') as any,
+    };
+    render(<LeftPane />);
+    expect(screen.getByText(/^On Site \(1\)$/i)).toBeTruthy();
   });
 });
