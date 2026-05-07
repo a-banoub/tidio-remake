@@ -59,4 +59,23 @@ export class ConversationsRepo {
       ORDER BY closed_at DESC LIMIT ?
     `).all(sinceTs, limit) as Conversation[];
   }
+
+  /**
+   * Boot-time reconciliation: mark any `status='live'` conversations whose
+   * `last_message_at` is older than `thresholdMs` milliseconds ago (relative
+   * to `now`) as 'abandoned', setting `closed_at = last_message_at`.
+   * Idempotent — safe to run on every server start.
+   * Returns the number of rows updated.
+   */
+  reconcileStaleAsAbandoned(thresholdMs: number, now: number): number {
+    const cutoff = now - thresholdMs;
+    const result = this.db.prepare(`
+      UPDATE conversations
+      SET status = 'abandoned', closed_at = last_message_at
+      WHERE status = 'live'
+        AND last_message_at < ?
+        AND closed_at IS NULL
+    `).run(cutoff);
+    return result.changes;
+  }
 }

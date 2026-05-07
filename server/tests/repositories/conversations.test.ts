@@ -3,6 +3,71 @@ import { makeTestDb } from '../helpers/testDb.js';
 import { VisitorsRepo } from '../../src/repositories/visitors.js';
 import { ConversationsRepo } from '../../src/repositories/conversations.js';
 
+describe('ConversationsRepo.reconcileStaleAsAbandoned', () => {
+  it('marks stale live conversations as abandoned and returns row count', () => {
+    const db = makeTestDb('reconcile1');
+    new VisitorsRepo(db).upsert('v_a', 1000);
+    new VisitorsRepo(db).upsert('v_b', 1000);
+    const repo = new ConversationsRepo(db);
+    const now = 10_000_000;
+    const oneHourMs = 3_600_000;
+
+    // Stale: last_message_at is 2 hours ago
+    repo.create({ id: 'c_stale', visitor_id: 'v_a', opened_session_id: null, status: 'live', opened_at: now - oneHourMs * 2, initiated_by: 'visitor' });
+    // Fresh: last_message_at is 30 min ago (within threshold)
+    repo.create({ id: 'c_fresh', visitor_id: 'v_b', opened_session_id: null, status: 'live', opened_at: now - oneHourMs / 2, initiated_by: 'visitor' });
+    // Bump last_message_at to simulate activity
+    repo.bumpLastMessageAt('c_stale', now - oneHourMs * 2);
+    repo.bumpLastMessageAt('c_fresh', now - oneHourMs / 2);
+
+    const count = repo.reconcileStaleAsAbandoned(oneHourMs, now);
+    expect(count).toBe(1);
+
+    const stale = repo.findById('c_stale');
+    expect(stale?.status).toBe('abandoned');
+    expect(stale?.closed_at).toBe(now - oneHourMs * 2);
+
+    const fresh = repo.findById('c_fresh');
+    expect(fresh?.status).toBe('live');
+    expect(fresh?.closed_at).toBeNull();
+  });
+
+  it('is idempotent — already-abandoned rows are not touched again', () => {
+    const db = makeTestDb('reconcile2');
+    new VisitorsRepo(db).upsert('v_a', 1000);
+    const repo = new ConversationsRepo(db);
+    const now = 10_000_000;
+    const oneHourMs = 3_600_000;
+
+    repo.create({ id: 'c_stale', visitor_id: 'v_a', opened_session_id: null, status: 'live', opened_at: now - oneHourMs * 2, initiated_by: 'visitor' });
+    repo.bumpLastMessageAt('c_stale', now - oneHourMs * 2);
+
+    expect(repo.reconcileStaleAsAbandoned(oneHourMs, now)).toBe(1);
+    // Second run: already abandoned, closed_at is set → should not match WHERE clause
+    expect(repo.reconcileStaleAsAbandoned(oneHourMs, now)).toBe(0);
+  });
+
+  it('returns 0 when no stale conversations exist', () => {
+    const db = makeTestDb('reconcile3');
+    const repo = new ConversationsRepo(db);
+    expect(repo.reconcileStaleAsAbandoned(3_600_000, Date.now())).toBe(0);
+  });
+
+  it('does not touch queued conversations even if old', () => {
+    const db = makeTestDb('reconcile4');
+    new VisitorsRepo(db).upsert('v_a', 1000);
+    const repo = new ConversationsRepo(db);
+    const now = 10_000_000;
+    const oneHourMs = 3_600_000;
+
+    repo.create({ id: 'c_queued', visitor_id: 'v_a', opened_session_id: null, status: 'queued', opened_at: now - oneHourMs * 2, initiated_by: 'visitor' });
+    repo.bumpLastMessageAt('c_queued', now - oneHourMs * 2);
+
+    expect(repo.reconcileStaleAsAbandoned(oneHourMs, now)).toBe(0);
+    expect(repo.findById('c_queued')?.status).toBe('queued');
+  });
+});
+
 describe('ConversationsRepo', () => {
   it('create + findById + setStatus + closed_at on close', () => {
     const db = makeTestDb('c1');

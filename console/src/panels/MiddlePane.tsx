@@ -1,11 +1,17 @@
+import { useState } from 'preact/hooks';
 import { selectedConversation, selectedVisitorId, liveVisitors, leftVisitors, closedConversations, pendingPing } from '../state/store.js';
 import { visitorDetail } from '../state/visitorDetail.js';
 import { ChatThread } from '../components/ChatThread.js';
 import { Composer } from '../components/Composer.js';
 import { QuickRepliesChips } from '../components/QuickRepliesChips.js';
 import { visitorDisplayName } from '../components/VisitorRow.js';
+import { openChatAndSendFirst } from '../state/openChatHelper.js';
+import { getWs } from '../wsBoot.js';
 
 export function MiddlePane() {
+  const [inlineBody, setInlineBody] = useState('');
+  const [inlineBusy, setInlineBusy] = useState(false);
+
   const conv = selectedConversation.value;
 
   // State B: conversation selected — existing behaviour
@@ -38,6 +44,16 @@ export function MiddlePane() {
       const visitor = liveVisitors.value[visitorId] ?? leftVisitors.value[visitorId];
       const displayName = visitor ? visitorDisplayName(visitor) : `Visitor #${visitorId.slice(-6)}`;
       const closedTs = new Date(myClosed.closed_at).toLocaleString();
+
+      async function sendInline() {
+        if (!inlineBody.trim() || inlineBusy) return;
+        setInlineBusy(true);
+        const ws = getWs();
+        await openChatAndSendFirst(visitorId, inlineBody, ws);
+        setInlineBody('');
+        setInlineBusy(false);
+      }
+
       return (
         <main className="flex flex-col bg-white border-r border-slate-200">
           <header className="px-4 py-3 border-b border-slate-200">
@@ -51,13 +67,27 @@ export function MiddlePane() {
               </div>
             ))}
           </div>
-          <div className="border-t border-slate-200 p-3">
+          <div className="border-t border-slate-200 p-3 flex flex-col gap-2">
+            <textarea
+              value={inlineBody}
+              onInput={(e) => setInlineBody((e.target as HTMLTextAreaElement).value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void sendInline();
+                }
+              }}
+              rows={2}
+              placeholder="Start a new chat…"
+              disabled={inlineBusy}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-brand-emerald focus:ring-2 focus:ring-brand-emerald/20 transition disabled:opacity-50"
+            />
             <button
-              onClick={() => { pendingPing.value = visitorId; }}
-              className="w-full bg-brand-emerald hover:bg-brand-emerald-600 text-white text-sm font-semibold rounded-lg flex items-center justify-center"
-              style={{ height: '44px' }}
+              onClick={() => void sendInline()}
+              disabled={inlineBusy || !inlineBody.trim()}
+              className="self-end bg-brand-emerald hover:bg-brand-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition disabled:opacity-50"
             >
-              Start new chat
+              {inlineBusy ? 'Opening…' : 'Send'}
             </button>
           </div>
         </main>
