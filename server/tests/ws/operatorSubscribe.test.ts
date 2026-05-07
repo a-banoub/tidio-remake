@@ -70,7 +70,9 @@ describe('operator subscribe', () => {
     new ConversationsRepo(db).setStatus(cid, 'closed', now);
     const messagesRepo = new MessagesRepo(db);
     messagesRepo.insert({ conversation_id: cid, sender: 'visitor', body: 'first', sent_at: now - 500 });
-    messagesRepo.insert({ conversation_id: cid, sender: 'operator', body: 'second reply that is the most recent', sent_at: now });
+    // Create a message body longer than 120 chars to test truncation
+    const longMessage = 'a'.repeat(200);
+    messagesRepo.insert({ conversation_id: cid, sender: 'operator', body: longMessage, sent_at: now });
 
     // Act: subscribe and read snapshot
     const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/operator`, { headers: { authorization: `Bearer ${validToken}` } });
@@ -80,7 +82,9 @@ describe('operator subscribe', () => {
 
     // Assert
     expect(snap.recentlyClosedConversations).toHaveLength(1);
-    expect(snap.recentlyClosedConversations[0].last_message_preview).toBe('second reply that is the most recent');
+    const preview = snap.recentlyClosedConversations[0].last_message_preview;
+    expect(preview.length).toBe(120);
+    expect(preview).toBe(longMessage.slice(0, 120));
     ws.close();
   });
 });
