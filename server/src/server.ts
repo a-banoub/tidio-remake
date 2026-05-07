@@ -18,6 +18,8 @@ import { visitorDetailRouter } from './api/visitorDetail.js';
 import { settingsRouter } from './api/settings.js';
 import { pushSubscribeRouter } from './api/pushSubscribe.js';
 import { setupRouter } from './api/setup.js';
+import { closedConversationsRouter } from './api/closedConversations.js';
+import { startArrivalDedupeSweep } from './push/recentArrivalDedupe.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WIDGET_DIST = resolve(__dirname, '..', '..', 'widget', 'dist');
@@ -64,6 +66,7 @@ export function createServer(input: ServerDepsInput): Server {
   app.use('/api/operator/quick-replies', quickRepliesRouter(deps));
   app.use('/api/operator/visitor', visitorDetailRouter(deps));
   app.use('/api/operator/settings', settingsRouter(deps));
+  app.use('/api/operator/conversations', closedConversationsRouter(deps));
 
   app.use('/widget', express.static(WIDGET_DIST, {
     maxAge: '5m',
@@ -109,6 +112,8 @@ export function createServer(input: ServerDepsInput): Server {
     const addr = server.address();
     logger.info({ addr }, 'server listening');
   });
+
+  startArrivalDedupeSweep(60_000);
 
   return server;
 }

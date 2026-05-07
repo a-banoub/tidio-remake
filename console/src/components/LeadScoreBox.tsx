@@ -24,9 +24,9 @@ export function LeadScoreBox({ visitor }: { visitor: LiveVisitor }) {
 
   return (
     <div
-      className={`p-3 rounded-lg ${
+      className={`p-3 rounded-xl ${
         hot
-          ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white'
+          ? 'bg-gradient-to-br from-brand-gold to-brand-gold-600 text-white'
           : 'bg-slate-100 text-slate-700'
       }`}
     >

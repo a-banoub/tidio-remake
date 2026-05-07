@@ -7,6 +7,8 @@ import { OperatorsRepo } from '../../src/repositories/operators.js';
 import { OperatorTokensRepo } from '../../src/repositories/operatorTokens.js';
 import { VisitorsRepo } from '../../src/repositories/visitors.js';
 import { ConversationsRepo } from '../../src/repositories/conversations.js';
+import { MessagesRepo } from '../../src/repositories/messages.js';
+import { newVisitorId, newConversationId } from '../../src/ids.js';
 
 let server: any, port: number, db: any, ls: LiveSessions, validToken: string;
 
@@ -41,6 +43,7 @@ describe('operator subscribe', () => {
     expect(snapshot.queuedConversations[0].id).toBe('c_aaaaaaaaaaaaaaaa');
     expect(snapshot.openConversations).toHaveLength(0);
     expect(snapshot.liveVisitors).toEqual([]);
+    expect(Array.isArray(snapshot.recentlyClosedConversations)).toBe(true);
     ws.close();
   });
 
@@ -51,6 +54,37 @@ describe('operator subscribe', () => {
     const reply: any = await new Promise(r => ws.on('message', m => r(JSON.parse(m.toString()))));
     expect(reply.type).toBe('error');
     expect(reply.code).toBe('bad_message');
+    ws.close();
+  });
+
+  it('includes last_message_preview on each recently closed conversation', async () => {
+    // Arrange a closed conversation with two messages
+    const visitorId = newVisitorId();
+    const cid = newConversationId();
+    const now = Date.now();
+    new VisitorsRepo(db).upsert(visitorId, now);
+    new ConversationsRepo(db).create({
+      id: cid, visitor_id: visitorId, opened_session_id: null,
+      status: 'closed', opened_at: now, initiated_by: 'visitor',
+    });
+    new ConversationsRepo(db).setStatus(cid, 'closed', now);
+    const messagesRepo = new MessagesRepo(db);
+    messagesRepo.insert({ conversation_id: cid, sender: 'visitor', body: 'first', sent_at: now - 500 });
+    // Create a message body longer than 120 chars to test truncation
+    const longMessage = 'a'.repeat(200);
+    messagesRepo.insert({ conversation_id: cid, sender: 'operator', body: longMessage, sent_at: now });
+
+    // Act: subscribe and read snapshot
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/operator`, { headers: { authorization: `Bearer ${validToken}` } });
+    await new Promise<void>(r => ws.on('open', () => r()));
+    ws.send(JSON.stringify({ type: 'subscribe' }));
+    const snap: any = await new Promise(r => ws.on('message', m => r(JSON.parse(m.toString()))));
+
+    // Assert
+    expect(snap.recentlyClosedConversations).toHaveLength(1);
+    const preview = snap.recentlyClosedConversations[0].last_message_preview;
+    expect(preview.length).toBe(120);
+    expect(preview).toBe(longMessage.slice(0, 120));
     ws.close();
   });
 });

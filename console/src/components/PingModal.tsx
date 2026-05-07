@@ -46,8 +46,8 @@ export function PingModal() {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-[480px] p-6 space-y-4">
-        <h3 className="text-lg font-semibold">Ping {visitor.name ?? 'visitor'}</h3>
+      <div className="bg-white rounded-2xl shadow-xl w-[480px] p-6 space-y-4">
+        <h3 className="text-lg font-semibold text-brand-navy">Ping {visitor.name ?? 'visitor'}</h3>
         <p className="text-xs text-slate-500">
           They're on <code className="bg-slate-100 px-1 rounded">{visitor.currentPage.url}</code>
         </p>
@@ -55,16 +55,16 @@ export function PingModal() {
           value={body}
           onInput={(e) => setBody((e.target as HTMLTextAreaElement).value)}
           rows={4}
-          className="w-full border border-slate-300 rounded p-2 text-sm"
+          className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:outline-none focus:border-brand-emerald focus:ring-2 focus:ring-brand-emerald/20 transition"
         />
         <div className="flex justify-end gap-2">
-          <button onClick={close} className="px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded">
+          <button onClick={close} className="px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition font-medium">
             Cancel
           </button>
           <button
             onClick={send}
             disabled={busy || !body.trim()}
-            className="px-3 py-2 text-sm bg-blue-600 text-white rounded disabled:opacity-50"
+            className="px-3 py-2 text-sm bg-brand-emerald text-white rounded-lg disabled:opacity-50 hover:bg-brand-emerald-600 transition font-semibold"
           >
             {busy ? 'Sending…' : 'Send ping'}
           </button>

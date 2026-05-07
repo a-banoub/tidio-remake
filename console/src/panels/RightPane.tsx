@@ -1,9 +1,10 @@
-import { selectedConversation, liveVisitors } from '../state/store.js';
+import { selectedConversation, selectedVisitorId, liveVisitors, leftVisitors, pendingPing } from '../state/store.js';
 import { visitorDetail } from '../state/visitorDetail.js';
 import { EditableContact } from '../components/EditableContact.js';
 import { LeadScoreBox } from '../components/LeadScoreBox.js';
 import { JourneyTimeline } from '../components/JourneyTimeline.js';
 import { SourceGeoDevicePanel } from '../components/SourceGeoDevicePanel.js';
+import type { LiveVisitor } from '../state/types.js';
 
 function ordinal(n: number): string {
   const mod100 = n % 100;
@@ -18,30 +19,71 @@ function ordinal(n: number): string {
 
 export function RightPane() {
   const conv = selectedConversation.value;
-  if (!conv) {
-    return <aside className="bg-slate-50 p-4 text-xs text-slate-400">Select a conversation</aside>;
+
+  // State B: conversation selected — existing behaviour
+  if (conv) {
+    const visitor = liveVisitors.value[conv.visitor_id];
+    if (!visitor) return <aside className="bg-slate-50 p-4 text-xs text-slate-400">Visitor offline</aside>;
+
+    const detail = visitorDetail.value;
+    const showReturningBadge =
+      detail && detail.visitor.id === visitor.visitorId && detail.visitCount > 1;
+
+    return (
+      <aside className="bg-white overflow-y-auto p-4 space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-slate-900">Visitor details</h3>
+          {showReturningBadge && (
+            <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs uppercase font-semibold">
+              RETURNING · {ordinal(detail!.visitCount)} visit
+            </span>
+          )}
+        </div>
+        <EditableContact visitor={visitor} />
+        <LeadScoreBox visitor={visitor} />
+        <JourneyTimeline visitor={visitor} />
+        <SourceGeoDevicePanel visitor={visitor} />
+      </aside>
+    );
   }
-  const visitor = liveVisitors.value[conv.visitor_id];
-  if (!visitor) return <aside className="bg-slate-50 p-4 text-xs text-slate-400">Visitor offline</aside>;
 
-  const detail = visitorDetail.value;
-  const showReturningBadge =
-    detail && detail.visitor.id === visitor.visitorId && detail.visitCount > 1;
+  // State A: visitor selected but no conversation
+  const visitorId = selectedVisitorId.value;
+  if (visitorId) {
+    const visitor: LiveVisitor | undefined = liveVisitors.value[visitorId] ?? leftVisitors.value[visitorId];
+    if (!visitor) {
+      return <aside className="bg-slate-50 p-4 text-xs text-slate-400">Visitor not found</aside>;
+    }
 
-  return (
-    <aside className="bg-white overflow-y-auto p-4 space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-900">Visitor details</h3>
-        {showReturningBadge && (
-          <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs uppercase font-semibold">
-            RETURNING · {ordinal(detail!.visitCount)} visit
-          </span>
-        )}
-      </div>
-      <EditableContact visitor={visitor} />
-      <LeadScoreBox visitor={visitor} />
-      <JourneyTimeline visitor={visitor} />
-      <SourceGeoDevicePanel visitor={visitor} />
-    </aside>
-  );
+    const detail = visitorDetail.value;
+    const showReturningBadge =
+      detail && detail.visitor.id === visitor.visitorId && detail.visitCount > 1;
+
+    return (
+      <aside className="bg-white overflow-y-auto p-4 space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-slate-900">Visitor details</h3>
+          {showReturningBadge && (
+            <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs uppercase font-semibold">
+              RETURNING · {ordinal(detail!.visitCount)} visit
+            </span>
+          )}
+        </div>
+        <EditableContact visitor={visitor} />
+        <LeadScoreBox visitor={visitor} />
+        <JourneyTimeline visitor={visitor} />
+        <SourceGeoDevicePanel visitor={visitor} />
+        <button
+          onClick={() => { pendingPing.value = visitorId; }}
+          className="w-full bg-brand-emerald hover:bg-brand-emerald-600 text-white text-sm font-semibold rounded-lg flex items-center justify-center"
+          style={{ height: '44px' }}
+        >
+          Start Chat
+        </button>
+      </aside>
+    );
+  }
+
+  // State C: nothing selected
+  return <aside className="bg-slate-50 p-4 text-xs text-slate-400">Select a conversation</aside>;
 }

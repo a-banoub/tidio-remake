@@ -5,8 +5,8 @@ type AlertStyle = { label: string; bg: string };
 
 function styleFor(reason: string): AlertStyle {
   switch (reason) {
-    case 'lead_score_8': return { label: 'Hot lead', bg: 'bg-orange-500 hover:bg-orange-600' };
-    case 'warm_visitor': return { label: 'Warm visitor', bg: 'bg-blue-500 hover:bg-blue-600' };
+    case 'lead_score_8': return { label: 'Hot lead', bg: 'bg-brand-gold hover:bg-brand-gold-600' };
+    case 'warm_visitor': return { label: 'Warm visitor', bg: 'bg-brand-navy hover:bg-brand-navy-700' };
     default: return { label: 'Alert', bg: 'bg-slate-500 hover:bg-slate-600' };
   }
 }
@@ -33,7 +33,7 @@ export function Toast() {
           <div
             key={a.visitorId + a.timestamp}
             role="alert"
-            className={`${bg} text-white p-4 rounded shadow-lg max-w-xs cursor-pointer`}
+            className={`${bg} text-white p-4 rounded-2xl shadow-lg max-w-xs cursor-pointer`}
             onClick={() => {
               const conv = Object.values(conversations.value).find((c: any) => c.visitor_id === a.visitorId);
               if (conv) {
@@ -44,7 +44,7 @@ export function Toast() {
               pendingAlerts.value = pendingAlerts.value.filter((x) => x !== a);
             }}
           >
-            <div className="text-xs font-bold uppercase">{label}</div>
+            <div className="text-xs font-bold uppercase tracking-wide">{label}</div>
             <div className="text-sm mt-1">
               {v ? `${v.name ?? 'Anonymous'} on ${v.currentPage.url}` : a.visitorId}
             </div>

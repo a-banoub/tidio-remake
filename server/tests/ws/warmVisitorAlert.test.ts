@@ -6,6 +6,7 @@ import { OperatorClients } from '../../src/live/operatorClients.js';
 import { WarmVisitorTimers } from '../../src/timers/warmVisitor.js';
 import { makeTestDb } from '../helpers/testDb.js';
 import { newVisitorId, newSessionId } from '../../src/ids.js';
+import { _resetForTests as _resetArrivalDedupe } from '../../src/push/recentArrivalDedupe.js';
 
 let server: any;
 let port: number;
@@ -16,6 +17,7 @@ let warmTimers: WarmVisitorTimers;
 let startSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(async () => {
+  _resetArrivalDedupe();
   db = makeTestDb('warm-' + Math.random().toString(36).slice(2));
   ls = new LiveSessions();
   oc = new OperatorClients();
@@ -254,9 +256,10 @@ describe('warm-visitor alert: fire path', () => {
     expect(seenAlerts[0].leadScore).toBeGreaterThan(0);
     expect(seenAlerts[0].page).toContain('/lp/start-your-1031');
 
-    expect(pushSpy).toHaveBeenCalledTimes(1);
-    expect(pushSpy.mock.calls[0][1]).toBe(1); // server always pushes to op#1
-    expect(pushSpy.mock.calls[0][2]).toMatchObject({
+    const warmCalls = pushSpy.mock.calls.filter(c => (c[2] as any).title === 'Warm visitor on site');
+    expect(warmCalls).toHaveLength(1);
+    expect(warmCalls[0][1]).toBe(1); // server always pushes to op#1
+    expect(warmCalls[0][2]).toMatchObject({
       title: 'Warm visitor on site',
       url: `/console/?ping=${visitorId}`,
     });

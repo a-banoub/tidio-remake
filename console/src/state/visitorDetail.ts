@@ -1,6 +1,6 @@
 import { signal, effect } from '@preact/signals';
 import { tokenStore } from '../auth/tokenStore.js';
-import { selectedConversation } from './store.js';
+import { selectedConversation, selectedVisitorId } from './store.js';
 
 export type VisitorDetail = {
   visitor: {
@@ -45,10 +45,13 @@ export function startVisitorDetailAutoFetch(): void {
   _autoEffectStarted = true;
   effect(() => {
     const conv = selectedConversation.value;
-    if (!conv) {
+    const visitorId = selectedVisitorId.value;
+    if (conv) {
+      void fetchVisitorDetail(conv.visitor_id);
+    } else if (visitorId) {
+      void fetchVisitorDetail(visitorId);
+    } else {
       visitorDetail.value = null;
-      return;
     }
-    void fetchVisitorDetail(conv.visitor_id);
   });
 }

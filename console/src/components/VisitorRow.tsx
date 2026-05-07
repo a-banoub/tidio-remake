@@ -1,6 +1,6 @@
 import type { LiveVisitor } from '../state/types.js';
 
-type Props = { visitor: LiveVisitor; onClick: () => void; selected?: boolean; lastMessageAt?: number; unread?: number };
+type Props = { visitor: LiveVisitor; onClick: () => void; selected?: boolean; lastMessageAt?: number; unread?: number; variant?: 'live' | 'queued' | 'onsite' | 'left'; leftAt?: number; previewText?: string };
 
 export function visitorDisplayName(v: LiveVisitor): string {
   if (v.name && v.name.trim().length > 0) return v.name;
@@ -34,30 +34,33 @@ export function relativeTime(ts: number, now: number = Date.now()): string {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export function VisitorRow({ visitor, onClick, selected, lastMessageAt, unread }: Props) {
+export function VisitorRow({ visitor, onClick, selected, lastMessageAt, unread, previewText }: Props) {
   const hot = visitor.isHot;
   const hasUnread = !!unread && unread > 0;
   const display = visitorDisplayName(visitor);
   const initial = (visitor.name?.[0] ?? display[display.length - 1] ?? '?').toUpperCase();
   const className = [
     'px-4 py-3 flex items-start gap-3 cursor-pointer border-b border-slate-100',
-    selected ? 'bg-blue-50' : hasUnread ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-slate-50',
-    hot && 'border-l-4 border-l-orange-500',
+    selected ? 'bg-brand-emerald-50' : hasUnread ? 'bg-brand-gold-50 hover:bg-brand-gold-50/80' : 'hover:bg-slate-50',
+    hot && 'border-l-4 border-l-brand-gold',
   ].filter(Boolean).join(' ');
   return (
     <div onClick={onClick} className={className}>
-      <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-sm font-semibold">
-        {initial}
+      <div className="relative">
+        <div className="w-10 h-10 rounded-full bg-brand-navy text-white flex items-center justify-center text-sm font-semibold">
+          {initial}
+        </div>
+        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-brand-emerald ring-2 ring-white" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline justify-between gap-2">
-          <span className={`text-sm truncate ${hasUnread ? 'font-bold text-slate-900' : 'font-medium text-slate-900'}`}>{display}</span>
+          <span className={`text-sm truncate ${hasUnread ? 'font-bold text-brand-navy' : 'font-medium text-slate-900'}`}>{display}</span>
           <div className="flex items-center gap-2 shrink-0">
-            {hot && <span className="text-[10px] uppercase font-bold text-orange-600">Hot</span>}
+            {hot && <span className="text-[10px] uppercase font-bold text-brand-gold">Hot</span>}
             {hasUnread && (
               <span
                 aria-label={`${unread} unread`}
-                className="text-[10px] font-bold bg-blue-600 text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center"
+                className="text-[10px] font-bold bg-brand-navy text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center"
                 data-testid="unread-badge"
               >
                 {unread! > 99 ? '99+' : unread}
@@ -71,6 +74,7 @@ export function VisitorRow({ visitor, onClick, selected, lastMessageAt, unread }
           </div>
         </div>
         <p className="text-xs text-slate-500 truncate">{pageLabel(visitor.currentPage.url)}</p>
+        {previewText && <p className="text-xs text-slate-500 truncate">{previewText}</p>}
         <p className="text-[11px] text-slate-400">Score {visitor.leadScore}</p>
       </div>
     </div>

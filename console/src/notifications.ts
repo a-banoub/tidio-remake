@@ -1,17 +1,34 @@
-// In-page feedback for inbound visitor messages.
+// In-page audio + title-bar feedback for visitor events.
 //
-// OS-level notifications come from the service worker's push handler, which
-// fires for every message regardless of which device is online. This module
-// only handles in-page affordances: ping sound + title-bar unread count.
-// We deliberately don't call `new Notification(...)` here anymore — that
-// used to double-fire alongside the SW push notification.
+// Audio: synthesized via Web Audio API (no binary assets). Plays on every
+// visitor message AND every visitor arrival when operator status != DND,
+// regardless of console window focus.
+//
+// Title flash: only when the tab is hidden (otherwise we'd just rewrite the
+// title repeatedly while the operator is looking at it).
 
-const SOUND_DATA_URL =
-  'data:audio/wav;base64,UklGRoQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YWAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIA=';
-
-let audioEl: HTMLAudioElement | null = null;
+let audioCtx: AudioContext | null = null;
 let originalTitle: string | null = null;
 let unread = 0;
+let operatorStatusLocal: 'online' | 'away' | 'dnd' = 'online';
+
+export function setOperatorStatusForNotifications(s: 'online' | 'away' | 'dnd') {
+  operatorStatusLocal = s;
+}
+
+function getAudioCtx(): AudioContext | null {
+  if (typeof window === 'undefined') return null;
+  if (audioCtx) return audioCtx;
+  const Ctor: typeof AudioContext | undefined =
+    (globalThis as any).AudioContext ?? (globalThis as any).webkitAudioContext;
+  if (!Ctor) return null;
+  try {
+    audioCtx = new Ctor();
+    return audioCtx;
+  } catch {
+    return null;
+  }
+}
 
 export async function requestNotificationPermission(): Promise<NotificationPermission> {
   if (typeof Notification === 'undefined') return 'denied';
@@ -21,23 +38,47 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
   try { return await Notification.requestPermission(); } catch { return 'denied'; }
 }
 
-export function notifyVisitorMessage(_opts: { name?: string | null; body: string }) {
-  if (typeof document === 'undefined') return;
-  if (document.visibilityState !== 'hidden') return;
-  unread++;
-  flashTitle();
-  playPing();
+// Call from a user gesture (login button) so subsequent ping plays succeed
+// in autoplay-restricted browsers.
+export function unlockAudio() {
+  const ctx = getAudioCtx();
+  if (ctx && ctx.state === 'suspended') {
+    void ctx.resume().catch(() => {});
+  }
 }
 
-function playPing() {
+function playTone(freq: number, durationMs: number, volume: number) {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
   try {
-    if (!audioEl) {
-      audioEl = new Audio(SOUND_DATA_URL);
-      audioEl.volume = 0.4;
-    }
-    audioEl.currentTime = 0;
-    void audioEl.play();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.value = volume;
+    // Short fade-out to avoid click at the end
+    const now = ctx.currentTime;
+    gain.gain.setValueAtTime(volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + durationMs / 1000);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + durationMs / 1000);
   } catch {}
+}
+
+export function notifyVisitorMessage(_opts: { name?: string | null; body: string }) {
+  if (operatorStatusLocal === 'dnd') return;
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+    unread++;
+    flashTitle();
+  }
+  playTone(880, 150, 0.4);
+}
+
+export function notifyVisitorArrived(_opts: { name?: string | null; page: string }) {
+  if (operatorStatusLocal === 'dnd') return;
+  playTone(523, 200, 0.25);
 }
 
 function flashTitle() {
@@ -54,7 +95,8 @@ export function clearUnread() {
 }
 
 export function _resetForTests() {
-  audioEl = null;
+  audioCtx = null;
   originalTitle = null;
   unread = 0;
+  operatorStatusLocal = 'online';
 }

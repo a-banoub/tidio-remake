@@ -25,7 +25,7 @@ export function ChatThread({ messages }: { messages: Message[] }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => { if (ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [messages.length]);
   return (
-    <div ref={ref} className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50 flex flex-col">
+    <div ref={ref} className="flex-1 overflow-y-auto p-4 space-y-2 bg-brand-gray flex flex-col">
       {messages.map((m, i) => {
         const prev = i > 0 ? messages[i - 1] : null;
         const showDayDivider = !prev || !isSameDay(prev.sent_at, m.sent_at);
@@ -44,7 +44,7 @@ export function ChatThread({ messages }: { messages: Message[] }) {
               <div
                 className={`px-3 py-2 rounded-lg text-sm ${
                   m.sender === 'operator'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-brand-emerald text-white'
                     : m.sender === 'visitor'
                     ? 'bg-white border border-slate-200'
                     : 'bg-slate-100 text-slate-500 text-xs'

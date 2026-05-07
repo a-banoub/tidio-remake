@@ -5,6 +5,7 @@ import { SetupPage } from './auth/SetupPage.js';
 import { LeftPane } from './panels/LeftPane.js';
 import { MiddlePane } from './panels/MiddlePane.js';
 import { RightPane } from './panels/RightPane.js';
+import { SettingsPage } from './panels/SettingsPage.js';
 import { bootWs } from './wsBoot.js';
 import { PingModal } from './components/PingModal.js';
 import { Toast } from './components/Toast.js';
@@ -15,7 +16,9 @@ import { requestNotificationPermission, clearUnread } from './notifications.js';
 type Route = 'loading' | 'setup' | 'login' | 'main';
 
 export function App() {
+  // All hooks at the top — Rules of Hooks
   const [route, setRoute] = useState<Route>('loading');
+  const [hash, setHash] = useState(typeof window !== 'undefined' ? window.location.hash : '');
 
   useEffect(() => {
     let cancelled = false;
@@ -42,6 +45,13 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', handler);
+    return () => window.removeEventListener('hashchange', handler);
+  }, []);
+
+  useEffect(() => {
     if (route === 'main') {
       bootWs();
       startVisitorDetailAutoFetch();
@@ -60,9 +70,13 @@ export function App() {
   if (route === 'setup') return <SetupPage />;
   if (route === 'login') return <LoginPage />;
 
+  // Hash-based routing for authenticated pages — safe, auth gate has passed
+
+  if (hash === '#/settings') return <SettingsPage />;
+
   return (
     <>
-      <div className="grid grid-cols-[280px_1fr_360px] h-screen bg-slate-50 text-slate-900">
+      <div className="grid grid-cols-[280px_1fr_360px] h-screen bg-brand-gray text-slate-900">
         <LeftPane />
         <MiddlePane />
         <RightPane />

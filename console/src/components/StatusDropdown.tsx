@@ -3,15 +3,15 @@ import { getWs } from '../wsBoot.js';
 import type { OperatorStatus } from '../state/types.js';
 
 const COLORS: Record<OperatorStatus, string> = {
-  online: 'bg-green-500',
-  away: 'bg-yellow-500',
+  online: 'bg-brand-emerald',
+  away: 'bg-amber-500',
   dnd: 'bg-red-500',
 };
 
 const LABELS: Record<OperatorStatus, string> = {
   online: 'Online',
   away: 'Away',
-  dnd: 'Do not disturb',
+  dnd: 'Do Not Disturb',
 };
 
 export function StatusDropdown() {
@@ -26,7 +26,7 @@ export function StatusDropdown() {
       <select
         value={status}
         onChange={(e) => change((e.target as HTMLSelectElement).value as OperatorStatus)}
-        className="text-sm border border-slate-300 rounded px-2 py-1"
+        className="text-sm border border-slate-300 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-brand-emerald focus:ring-2 focus:ring-brand-emerald/20 transition"
       >
         <option value="online">{LABELS.online}</option>
         <option value="away">{LABELS.away}</option>

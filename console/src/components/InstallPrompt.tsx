@@ -50,7 +50,7 @@ export function InstallPrompt() {
     <button
       type="button"
       onClick={onInstall}
-      className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+      className="text-xs px-2 py-1 rounded-lg bg-brand-emerald text-white hover:bg-brand-emerald-600 transition font-semibold"
     >
       Install app
     </button>

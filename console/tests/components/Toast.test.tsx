@@ -28,20 +28,20 @@ describe('Toast', () => {
     expect(container.textContent).toBe('');
   });
 
-  it('renders "Hot lead" with orange tint for lead_score_8', () => {
+  it('renders "Hot lead" with gold tint for lead_score_8', () => {
     liveVisitors.value = { v_a: makeVisitor('v_a') };
     pendingAlerts.value = [{ visitorId: 'v_a', reason: 'lead_score_8', timestamp: 1 }];
     const { container, getByRole } = render(<Toast />);
     expect(container.textContent).toContain('Hot lead');
-    expect(getByRole('alert').className).toMatch(/bg-orange/);
+    expect(getByRole('alert').className).toMatch(/bg-brand-gold/);
   });
 
-  it('renders "Warm visitor" with blue tint for warm_visitor', () => {
+  it('renders "Warm visitor" with navy tint for warm_visitor', () => {
     liveVisitors.value = { v_a: makeVisitor('v_a') };
     pendingAlerts.value = [{ visitorId: 'v_a', reason: 'warm_visitor', timestamp: 1 }];
     const { container, getByRole } = render(<Toast />);
     expect(container.textContent).toContain('Warm visitor');
-    expect(getByRole('alert').className).toMatch(/bg-blue/);
+    expect(getByRole('alert').className).toMatch(/bg-brand-navy/);
   });
 
   it('clicking a warm_visitor toast (no conversation) sets pendingPing', () => {

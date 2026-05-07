@@ -17,7 +17,7 @@ const KIND_LABELS: Record<string, string> = {
 };
 
 function SectionHeader({ children }: { children: any }) {
-  return <h4 className="text-xs uppercase font-semibold text-slate-500 mb-1">{children}</h4>;
+  return <h4 className="text-xs uppercase font-semibold text-brand-navy tracking-wide mb-2">{children}</h4>;
 }
 
 export function SourceGeoDevicePanel({ visitor }: { visitor: LiveVisitor }) {
@@ -77,13 +77,13 @@ export function SourceGeoDevicePanel({ visitor }: { visitor: LiveVisitor }) {
           {engagementSignals.map((s) => (
             <span
               key={s.id}
-              className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-xs"
+              className="bg-brand-gold-50 text-amber-800 px-2 py-0.5 rounded-full text-xs font-medium"
             >
               {KIND_LABELS[s.kind] ?? s.kind}
             </span>
           ))}
           {typeof scrollPct === 'number' && (
-            <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs">
+            <span className="bg-brand-emerald-50 text-brand-emerald-700 px-2 py-0.5 rounded-full text-xs font-medium">
               Scroll {Math.round(scrollPct)}%
             </span>
           )}

@@ -12,5 +12,7 @@ describe('SessionsRepo', () => {
     expect(repo.findById('s_1')?.utm_source).toBe('g');
     repo.bumpLeadScore('s_1', 3); repo.bumpLeadScore('s_1', 2);
     expect(repo.findById('s_1')?.current_lead_score).toBe(5);
+    repo.markDwellNotified('s_1', 9999);
+    expect(repo.findById('s_1')?.dwell_notified_at).toBe(9999);
   });
 });

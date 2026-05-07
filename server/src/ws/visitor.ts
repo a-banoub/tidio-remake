@@ -17,13 +17,20 @@ import { lookup } from '../geo/lookup.js';
 import UAParser from 'ua-parser-js';
 import * as pushDispatcher from '../push/dispatcher.js';
 import { shouldPushOperator } from '../push/shouldPush.js';
+import { shouldPushArrival } from '../push/recentArrivalDedupe.js';
 
-type ConnState = { visitorId?: string; sessionId?: string };
+type ConnState = { visitorId?: string; sessionId?: string; dwellTimer?: NodeJS.Timeout };
 
 function dwellMsForEnv(): number {
   const override = process.env.TEST_WARM_VISITOR_DWELL_MS;
   if (override && /^\d+$/.test(override)) return Number(override);
   return WARM_VISITOR_DWELL_MS;
+}
+
+function googleLeadDwellMsForEnv(): number {
+  const override = process.env.TEST_GOOGLE_LEAD_DWELL_MS;
+  if (override && /^\d+$/.test(override)) return Number(override);
+  return 30_000;
 }
 
 function pathOf(url: string): string {
@@ -151,6 +158,28 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
           });
         }
 
+        // Google lead 30-second dwell push
+        const hasGclid = msg.utms.gclid;
+        if (hasGclid && !existingSession) {
+          state.dwellTimer = setTimeout(() => {
+            const sessionNow = sessions.findById(msg.sessionId);
+            if (sessionNow && !sessionNow.dwell_notified_at) {
+              const opNow = operators.findById(1);
+              if (shouldPushOperator(opNow ?? undefined, false)) {
+                pushDispatcher
+                  .pushToOperator(deps, 1, {
+                    title: 'Google Ads lead on site',
+                    body: `${pathOf(msg.page.url)} · engaged for 30s`,
+                    url: `/console/?ping=${msg.visitorId}`,
+                    urgency: 'high',
+                  })
+                  .catch((err) => logger.warn({ err }, 'google-lead dwell push failed'));
+                sessions.markDwellNotified(msg.sessionId, Date.now());
+              }
+            }
+          }, googleLeadDwellMsForEnv());
+        }
+
         const op = operators.findById(1);
         const operatorOnline = op?.status === 'online';
 
@@ -169,6 +198,22 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
         const visitor = visitors.findById(msg.visitorId);
         const session = sessions.findById(msg.sessionId);
         deps.oc.broadcastTo(1, { type: 'visitor_appeared', visitor, session });
+
+        // Web Push: notify operator of every new visitor arrival (not reconnects).
+        // Deduped per visitorId for 5 minutes to prevent storms on tab refreshes.
+        if (!existingSession) {
+          const opForArrival = operators.findById(1);
+          if (shouldPushOperator(opForArrival ?? undefined, false) && shouldPushArrival(msg.visitorId)) {
+            const label = visitor?.name ?? `Visitor #${msg.visitorId.slice(-6)}`;
+            pushDispatcher.pushToOperator(deps, 1, {
+              title: 'New visitor on site',
+              body: `${label} · ${pathOf(msg.page.url)}`,
+              url: `/console/?ping=${msg.visitorId}`,
+              tag: `visitor-${msg.visitorId}`,
+              urgency: 'high',
+            }).catch((err) => logger.warn({ err }, 'arrival push failed'));
+          }
+        }
         break;
       }
       case 'presence': {
@@ -294,6 +339,7 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
               title: 'New message from visitor',
               body: msg.body.slice(0, 100),
               url: `/console/#/chat/${conv.id}`,
+              urgency: 'high',
             })
             .catch((err) => logger.warn({ err }, 'push trigger failed'));
         }
@@ -347,6 +393,10 @@ export function handleVisitorConnection(ws: WebSocket, req: IncomingMessage, dep
   });
 
   ws.on('close', () => {
+    if (state.dwellTimer) {
+      clearTimeout(state.dwellTimer);
+      state.dwellTimer = undefined;
+    }
     if (state.visitorId) {
       deps.warmTimers.cancel(state.visitorId);
       if (state.sessionId) deps.warmTimers.clearForSession(state.sessionId);

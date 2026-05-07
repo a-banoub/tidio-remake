@@ -28,7 +28,7 @@ describe('migrate', () => {
     const db = openDb(TEST_DB);
     migrate(db);
     migrate(db);
-    expect((db.prepare('SELECT COUNT(*) as c FROM migrations').get() as any).c).toBe(1);
+    expect((db.prepare('SELECT COUNT(*) as c FROM migrations').get() as any).c).toBe(3);
     db.close();
   });
 });
