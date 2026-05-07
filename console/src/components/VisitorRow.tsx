@@ -1,6 +1,6 @@
 import type { LiveVisitor } from '../state/types.js';
 
-type Props = { visitor: LiveVisitor; onClick: () => void; selected?: boolean; lastMessageAt?: number; unread?: number };
+type Props = { visitor: LiveVisitor; onClick: () => void; selected?: boolean; lastMessageAt?: number; unread?: number; variant?: 'live' | 'queued' | 'onsite' | 'left'; leftAt?: number; previewText?: string };
 
 export function visitorDisplayName(v: LiveVisitor): string {
   if (v.name && v.name.trim().length > 0) return v.name;
@@ -34,7 +34,7 @@ export function relativeTime(ts: number, now: number = Date.now()): string {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export function VisitorRow({ visitor, onClick, selected, lastMessageAt, unread }: Props) {
+export function VisitorRow({ visitor, onClick, selected, lastMessageAt, unread, previewText }: Props) {
   const hot = visitor.isHot;
   const hasUnread = !!unread && unread > 0;
   const display = visitorDisplayName(visitor);
@@ -74,6 +74,7 @@ export function VisitorRow({ visitor, onClick, selected, lastMessageAt, unread }
           </div>
         </div>
         <p className="text-xs text-slate-500 truncate">{pageLabel(visitor.currentPage.url)}</p>
+        {previewText && <p className="text-xs text-slate-500 truncate">{previewText}</p>}
         <p className="text-[11px] text-slate-400">Score {visitor.leadScore}</p>
       </div>
     </div>
