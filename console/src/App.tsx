@@ -5,6 +5,7 @@ import { SetupPage } from './auth/SetupPage.js';
 import { LeftPane } from './panels/LeftPane.js';
 import { MiddlePane } from './panels/MiddlePane.js';
 import { RightPane } from './panels/RightPane.js';
+import { SettingsPage } from './panels/SettingsPage.js';
 import { bootWs } from './wsBoot.js';
 import { PingModal } from './components/PingModal.js';
 import { Toast } from './components/Toast.js';
@@ -59,6 +60,17 @@ export function App() {
   if (route === 'loading') return null;
   if (route === 'setup') return <SetupPage />;
   if (route === 'login') return <LoginPage />;
+
+  // Hash-based routing for authenticated pages
+  const [hash, setHash] = useState(typeof window !== 'undefined' ? window.location.hash : '');
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', handler);
+    return () => window.removeEventListener('hashchange', handler);
+  }, []);
+
+  if (hash === '#/settings') return <SettingsPage />;
 
   return (
     <>

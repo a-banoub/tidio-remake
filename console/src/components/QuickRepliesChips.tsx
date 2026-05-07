@@ -10,7 +10,7 @@ export function QuickRepliesChips() {
           {r.label}
         </button>
       ))}
-      <button className="text-xs px-2 py-1 text-brand-navy hover:underline font-medium">+ Edit chips</button>
+      <a href="#/settings" className="text-xs px-2 py-1 text-slate-500 hover:text-slate-700 underline font-medium">Edit replies</a>
     </div>
   );
 }
